@@ -68,7 +68,7 @@ RUN chmod +x ./bin/* && \
 USER 1000:1000
 
 # Entrypoint runs db:prepare before booting the server (see bin/docker-entrypoint).
-ENTRYPOINT ["./bin/docker-entrypoint"]
+ENTRYPOINT ["bash", "bin/docker-entrypoint"]
 
 # Render provides $PORT; Puma reads it via config/puma.rb.
 EXPOSE 3000

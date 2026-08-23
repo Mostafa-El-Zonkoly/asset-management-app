@@ -1,4 +1,5 @@
-#!/bin/bash -e
+#!/bin/bash
+set -e
 
 # Enable jemalloc for reduced memory usage and latency.
 if [ -z "${LD_PRELOAD+x}" ] && [ -f /usr/lib/*/libjemalloc.so.2 ]; then
@@ -6,10 +7,10 @@ if [ -z "${LD_PRELOAD+x}" ] && [ -f /usr/lib/*/libjemalloc.so.2 ]; then
 fi
 
 # Create the database, load the schema, run pending migrations, and seed on
-# first boot. Idempotent and safe to re-run on every deploy.
+# first boot. Idempotent; safe to re-run on every deploy.
 # Set SKIP_DB_PREPARE=1 to bypass (e.g. for a one-off console/rake container).
 if [ "${SKIP_DB_PREPARE}" != "1" ]; then
-  ./bin/rails db:prepare
+  bundle exec rails db:prepare
 fi
 
 exec "${@}"
