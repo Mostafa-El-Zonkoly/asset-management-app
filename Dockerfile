@@ -43,8 +43,10 @@ RUN bundle install && \
 # Copy application code
 COPY . .
 
-# Precompile bootsnap code for faster boot times
-RUN bundle exec bootsnap precompile app/ lib/
+# Make binstubs executable regardless of the checked-out file modes, then
+# precompile bootsnap code and assets.
+RUN chmod +x ./bin/* && \
+    bundle exec bootsnap precompile app/ lib/
 
 # Precompile assets for production without needing RAILS_MASTER_KEY / secrets.
 # (tailwindcss-rails builds the stylesheet as part of assets:precompile.)
@@ -57,8 +59,10 @@ FROM base
 COPY --from=build "${BUNDLE_PATH}" "${BUNDLE_PATH}"
 COPY --from=build /rails /rails
 
-# Run and own only the runtime files as a non-root user for security
-RUN groupadd --system --gid 1000 rails && \
+# Ensure binstubs are executable in the final image, create a non-root user,
+# and give it ownership of the runtime-writable directories.
+RUN chmod +x ./bin/* && \
+    groupadd --system --gid 1000 rails && \
     useradd rails --uid 1000 --gid 1000 --create-home --shell /bin/bash && \
     chown -R rails:rails db log storage tmp
 USER 1000:1000
