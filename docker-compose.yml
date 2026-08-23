@@ -1,0 +1,64 @@
+# Two services linked over a private Docker network:
+#   - `db`  → PostgreSQL, running on a non-default port (5433) both inside and
+#             outside the container so it won't clash with a Postgres already
+#             running on the host's default 5432.
+#   - `web` → Rails app built from the local Dockerfile, connects to `db:5433`.
+#
+# Run:  docker compose up --build
+# App:  http://localhost:3000
+# DB:   psql -h localhost -p 5433 -U postgres portfolio_app_development
+
+services:
+  db:
+    image: postgres:16-alpine
+    # Tell Postgres to listen on 5433 instead of the default 5432.
+    command: ["postgres", "-p", "5433"]
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: portfolio_app_development
+      PGPORT: "5433"
+    ports:
+      - "5433:5433"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - portfolio_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d portfolio_app_development -p 5433"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  web:
+    build: .
+    entrypoint: ["./bin/docker-entrypoint"]
+    command: ["./bin/rails", "server", "-b", "0.0.0.0", "-p", "3000"]
+    ports:
+      - "3000:3000"
+    environment:
+      RAILS_ENV: development
+      DATABASE_HOST: db
+      DATABASE_PORT: "5433"
+      DATABASE_USERNAME: postgres
+      DATABASE_PASSWORD: password
+      SECRET_KEY_BASE: "anylongrandonstringwilldo123456789abcdef"
+    volumes:
+      - .:/rails
+      - bundle_cache:/usr/local/bundle
+
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - portfolio_net
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  bundle_cache:
+
+networks:
+  portfolio_net:
+    driver: bridge

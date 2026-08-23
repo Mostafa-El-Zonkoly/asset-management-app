@@ -1,0 +1,150 @@
+/* Nav dropdowns — plain CSS so menus work even when Tailwind utilities are missing from the build */
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  border-bottom: 1px solid #e2e8f0;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
+}
+
+.app-header__inner {
+  display: flex;
+  height: 3.5rem;
+  align-items: center;
+  gap: 1rem;
+  overflow: visible;
+}
+
+.app-header__brand {
+  flex-shrink: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #0f172a;
+  text-decoration: none;
+}
+
+.app-header__nav {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 0.125rem;
+  overflow: visible;
+}
+
+.app-header__link {
+  flex-shrink: 0;
+  border-radius: 0.375rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #334155;
+  text-decoration: none;
+}
+
+.app-header__link:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.app-header__user {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.nav-menu {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.nav-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border: none;
+  border-radius: 0.375rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #334155;
+  background: transparent;
+  cursor: pointer;
+}
+
+.nav-menu-trigger:hover,
+.nav-menu-trigger[aria-expanded="true"] {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.nav-menu-chevron {
+  width: 0.875rem;
+  height: 0.875rem;
+  color: #94a3b8;
+  transition: transform 0.2s ease;
+}
+
+.nav-menu-trigger[aria-expanded="true"] .nav-menu-chevron {
+  transform: rotate(180deg);
+}
+
+.nav-menu-panel {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 50;
+  margin-top: 0.25rem;
+  min-width: 11rem;
+  padding: 0.25rem 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  background: #fff;
+  box-shadow:
+    0 10px 15px -3px rgb(0 0 0 / 0.1),
+    0 4px 6px -4px rgb(0 0 0 / 0.1);
+}
+
+.nav-menu-panel--end {
+  left: auto;
+  right: 0;
+}
+
+.nav-menu-panel--open {
+  display: block;
+}
+
+.nav-menu-item {
+  display: block;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  color: #334155;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.nav-menu-item:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+/*
+ * This is a manifest file that'll be compiled into application.css, which will include all the files
+ * listed below.
+ *
+ * Any CSS (and SCSS, if configured) file within this directory, lib/assets/stylesheets, or any plugin's
+ * vendor/assets/stylesheets directory can be referenced here using a relative path.
+ *
+ * You're free to add application-wide styles to this file and they'll appear at the bottom of the
+ * compiled file so the styles you add here take precedence over styles defined in any other CSS
+ * files in this directory. Styles in this file should be added after the last require_* statement.
+ * It is generally better to create a new file per style scope.
+ *
+
+
+ */

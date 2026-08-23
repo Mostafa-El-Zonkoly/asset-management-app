@@ -1,0 +1,63 @@
+<% content_for :title, "Transaction details" %>
+<div class="flex flex-wrap items-start justify-between gap-3">
+  <div>
+    <h1 class="text-2xl font-semibold">Transaction details</h1>
+    <p class="mt-1 text-sm text-slate-600">Posted on <%= l @transaction.date.to_date %></p>
+  </div>
+  <div class="flex flex-wrap gap-2">
+    <%= link_to "Edit", edit_transaction_path(@transaction), class: "rounded-md border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50" %>
+    <%= link_to "Back to transactions", transactions_path, class: "rounded-md bg-slate-800 px-3 py-2 text-sm font-medium text-white hover:bg-slate-900" %>
+  </div>
+</div>
+
+<dl class="mt-6 grid gap-2 rounded-xl border border-slate-200 bg-white p-4 text-sm shadow-sm md:grid-cols-2">
+  <dt class="font-medium text-slate-700">Type</dt>
+  <dd><%= @transaction.transaction_type.label %></dd>
+
+  <dt class="font-medium text-slate-700">Portfolio</dt>
+  <dd><%= @transaction.portfolio&.name || "—" %></dd>
+
+  <dt class="font-medium text-slate-700">Asset</dt>
+  <dd><%= link_to @transaction.asset.code, @transaction.asset, class: "text-blue-600 hover:underline" %></dd>
+
+  <dt class="font-medium text-slate-700">Currency</dt>
+  <dd><%= @transaction.currency.code %></dd>
+
+  <dt class="font-medium text-slate-700">Quantity</dt>
+  <dd><%= number_with_precision(@transaction.quantity, precision: 8, strip_insignificant_zeros: true) %></dd>
+
+  <dt class="font-medium text-slate-700">Price per unit</dt>
+  <dd><%= number_with_precision(@transaction.price_per_unit, precision: 8, strip_insignificant_zeros: true) %></dd>
+
+  <dt class="font-medium text-slate-700">Total amount</dt>
+  <dd><%= number_with_precision(@transaction.total_amount, precision: 2) %> <%= @transaction.currency.code %></dd>
+
+  <dt class="font-medium text-slate-700">Wallet</dt>
+  <dd>
+    <% if @transaction.related_wallet %>
+      <%= link_to @transaction.related_wallet.code, @transaction.related_wallet, class: "text-blue-600 hover:underline" %>
+    <% else %>
+      —
+    <% end %>
+  </dd>
+
+  <dt class="font-medium text-slate-700">Transfer destination wallet</dt>
+  <dd>
+    <% if @transaction.transfer_to_wallet %>
+      <%= link_to @transaction.transfer_to_wallet.code, @transaction.transfer_to_wallet, class: "text-blue-600 hover:underline" %>
+    <% else %>
+      —
+    <% end %>
+  </dd>
+
+  <dt class="font-medium text-slate-700">Created at</dt>
+  <dd><%= l @transaction.created_at, format: :long %></dd>
+
+  <dt class="font-medium text-slate-700">Updated at</dt>
+  <dd><%= l @transaction.updated_at, format: :long %></dd>
+</dl>
+
+<div class="mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+  <h2 class="text-sm font-medium text-slate-800">Notes</h2>
+  <p class="mt-2 whitespace-pre-line text-sm text-slate-700"><%= @transaction.notes.presence || "—" %></p>
+</div>

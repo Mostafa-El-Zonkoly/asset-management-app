@@ -1,0 +1,166 @@
+<% content_for :title, "Portfolio funding plan" %>
+
+<div class="flex flex-wrap items-end justify-between gap-4">
+  <div>
+    <h1 class="text-2xl font-semibold text-slate-900">Portfolio funding plan</h1>
+    <p class="mt-1 text-sm text-slate-600">
+      Enter an amount and get a suggested top-up distribution to move portfolios toward their capacity and category targets.
+      Portfolio positions are never reduced. Free cash above its target may move to portfolios first; only if portfolio gaps still need funding do we optionally use extra wallet slack (down to 50% of the wallet target share). If wallets are already below target, the plan does not draw them down further.
+    </p>
+  </div>
+  <div class="flex gap-2">
+    <%= link_to "Custom amounts plan", custom_funding_plan_portfolios_path, class: "rounded-md border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50" %>
+    <%= link_to "Back to portfolios", portfolios_path, class: "rounded-md border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50" %>
+  </div>
+</div>
+
+<% if @reporting_currency %>
+  <p class="mt-4 text-sm text-slate-600">All values are shown in reporting currency <span class="font-medium"><%= @reporting_currency.code %></span>.</p>
+<% end %>
+<p class="mt-1 text-xs text-slate-500">Only targeted buckets are included (untargeted buckets such as emergency funds are excluded). Free cash wallets are included; the plan prefers keeping them on target, then may use limited slack toward half the target share only when needed for portfolio gaps.</p>
+
+<div class="mt-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+  <%= form_with url: funding_plan_portfolios_path, method: :get, local: true, class: "grid gap-3 sm:grid-cols-[1fr_auto]" do |f| %>
+    <div>
+      <%= f.label :amount, "Amount to distribute", class: "block text-sm font-medium text-slate-700" %>
+      <%= f.number_field :amount, value: @amount, step: :any, min: 0, placeholder: "e.g. 10000", class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+    </div>
+    <div class="self-end">
+      <%= f.submit "Build plan", class: "rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700" %>
+    </div>
+  <% end %>
+</div>
+
+<% if @plan.present? %>
+  <div class="mt-6 grid gap-4 sm:grid-cols-3">
+    <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <p class="text-xs uppercase text-slate-500">Input amount</p>
+      <p class="mt-1 text-lg font-semibold tabular-nums"><%= number_with_precision(@plan[:amount], precision: 2) %></p>
+    </div>
+    <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <p class="text-xs uppercase text-slate-500">Allocated to portfolios</p>
+      <p class="mt-1 text-lg font-semibold tabular-nums"><%= number_with_precision(@plan[:allocated_total], precision: 2) %></p>
+    </div>
+    <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <p class="text-xs uppercase text-slate-500">Unallocated (no capacity left)</p>
+      <p class="mt-1 text-lg font-semibold tabular-nums"><%= number_with_precision(@plan[:unallocated_amount], precision: 2) %></p>
+    </div>
+  </div>
+
+  <div class="mt-8 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+    <div class="border-b border-slate-100 px-4 py-3 font-medium">Top-level distribution (portfolios + wallets)</div>
+    <table data-controller="sortable-table" class="w-full min-w-[52rem] text-left text-sm">
+      <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+        <tr>
+          <th class="px-4 py-2">Bucket</th>
+          <th class="px-4 py-2 text-right">Current value (%)</th>
+          <th class="px-4 py-2 text-right">Capacity gap</th>
+          <th class="px-4 py-2 text-right">Addition</th>
+          <th class="px-4 py-2 text-right">Resulted value (%)</th>
+          <th class="px-4 py-2 text-right">Deviation after add</th>
+          <th class="px-4 py-2">Flow</th>
+          <th class="px-4 py-2">Whole target</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @plan[:rows].each do |row| %>
+          <% whole = row[:whole_target] %>
+          <tr class="border-t border-slate-100">
+            <td class="px-4 py-2 font-medium">
+              <% if row[:kind] == :portfolio %>
+                <%= link_to row[:name], row[:portfolio], class: "text-blue-600 hover:underline" %>
+              <% else %>
+                <%= row[:name] %>
+              <% end %>
+            </td>
+            <td class="px-4 py-2 text-right tabular-nums"><%= number_with_precision(row[:current_value], precision: 2) %> (<%= number_with_precision(row[:current_pct], precision: 2) %>%)</td>
+            <td class="px-4 py-2 text-right tabular-nums"><%= number_with_precision(row[:capacity_gap], precision: 2) %></td>
+            <td class="px-4 py-2 text-right tabular-nums"><%= number_with_precision(row[:suggested_add], precision: 2) %></td>
+            <td class="px-4 py-2 text-right tabular-nums"><%= number_with_precision(row[:resulted_value], precision: 2) %> (<%= number_with_precision(row[:resulted_pct], precision: 2) %>%)</td>
+            <td class="px-4 py-2 text-right tabular-nums">
+              <% if row[:deviation_after_add_amount].nil? %>
+                <span class="text-slate-400">—</span>
+              <% else %>
+                <%= safe_join([
+                  format_target_deviation_value(row[:deviation_after_add_amount], deviation_pct: row[:deviation_after_add_pct], precision: 2),
+                  " (",
+                  format_target_deviation_percent(row[:deviation_after_add_pct], precision: 2),
+                  ")"
+                ]) %>
+              <% end %>
+            </td>
+            <td class="px-4 py-2 text-xs tabular-nums text-slate-700">
+              <%= number_with_precision(row[:current_value], precision: 2) %> (<%= number_with_precision(row[:current_pct], precision: 2) %>%) -
+              <%= number_with_precision(row[:suggested_add], precision: 2) %> -
+              <%= number_with_precision(row[:resulted_value], precision: 2) %> (<%= number_with_precision(row[:resulted_pct], precision: 2) %>%)
+            </td>
+            <td class="px-4 py-2 text-slate-600">
+              <% if whole.nil? %>
+                <span class="text-slate-400">No whole-portfolio target</span>
+              <% elsif whole[:mode] == :percentage && whole[:target_pct].present? %>
+                Share target <%= number_with_precision(whole[:target_pct], precision: 2) %>%
+              <% elsif whole[:mode] == :percentage %>
+                <span class="text-slate-400">No free-cash target</span>
+              <% else %>
+                Amount target <%= number_with_precision(whole[:target_amount], precision: 2) %>
+              <% end %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="mt-10 space-y-8">
+    <% @plan[:rows].select { |row| row[:kind] == :portfolio && row[:suggested_add].to_d.positive? }.each do |row| %>
+      <% breakdown = row[:target_breakdown] %>
+      <section class="rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div class="border-b border-slate-100 px-4 py-3">
+          <h2 class="text-lg font-semibold text-slate-900"><%= row[:portfolio].name %> — target distribution</h2>
+          <p class="mt-1 text-xs text-slate-600">
+            Suggested add: <span class="font-medium tabular-nums"><%= number_with_precision(row[:suggested_add], precision: 2) %></span>
+            · Allocated to category gaps: <span class="font-medium tabular-nums"><%= number_with_precision(breakdown[:allocated_total], precision: 2) %></span>
+            · Unallocated in portfolio: <span class="font-medium tabular-nums"><%= number_with_precision(breakdown[:unallocated_amount], precision: 2) %></span>
+          </p>
+        </div>
+        <div class="overflow-x-auto">
+          <table data-controller="sortable-table" class="w-full min-w-[44rem] text-left text-sm">
+            <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+              <tr>
+                <th class="px-4 py-2">Category</th>
+                <th class="px-4 py-2 text-right">Current value (%)</th>
+                <th class="px-4 py-2 text-right">Target gap</th>
+                <th class="px-4 py-2 text-right">Addition</th>
+                <th class="px-4 py-2 text-right">Resulted value (%)</th>
+                <th class="px-4 py-2 text-right">Deviation after add</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% breakdown[:rows].each do |target_row| %>
+                <tr class="border-t border-slate-100">
+                  <td class="px-4 py-2"><%= target_row[:category] %></td>
+                  <td class="px-4 py-2 text-right tabular-nums"><%= number_with_precision(target_row[:current_value], precision: 2) %> (<%= number_with_precision(target_row[:current_pct], precision: 2) %>%)</td>
+                  <td class="px-4 py-2 text-right tabular-nums"><%= number_with_precision(target_row[:target_gap], precision: 2) %></td>
+                  <td class="px-4 py-2 text-right tabular-nums"><%= number_with_precision(target_row[:suggested_add], precision: 2) %></td>
+                  <td class="px-4 py-2 text-right tabular-nums"><%= number_with_precision(target_row[:resulted_value], precision: 2) %> (<%= number_with_precision(target_row[:resulted_pct], precision: 2) %>%)</td>
+                  <td class="px-4 py-2 text-right tabular-nums">
+                    <% if target_row[:deviation_after_add_amount].nil? %>
+                      <span class="text-slate-400">—</span>
+                    <% else %>
+                      <%= safe_join([
+                        format_target_deviation_value(target_row[:deviation_after_add_amount], deviation_pct: target_row[:deviation_after_add_pct], precision: 2),
+                        " (",
+                        format_target_deviation_percent(target_row[:deviation_after_add_pct], precision: 2),
+                        ")"
+                      ]) %>
+                    <% end %>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    <% end %>
+  </div>
+<% end %>

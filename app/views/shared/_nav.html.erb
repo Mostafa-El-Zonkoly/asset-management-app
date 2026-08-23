@@ -1,0 +1,62 @@
+<% portfolio_items = [
+  { label: "Portfolios", path: portfolios_path },
+  { label: "Portfolio stats", path: statistics_portfolios_path },
+  { label: "Zakaa", path: zakaa_statistics_portfolios_path },
+  { label: "Monthly flows", path: monthly_flows_portfolios_path }
+] %>
+<% sector_items = [
+  { label: "Sectors", path: sector_analysis_portfolios_path },
+  { label: "Sector / speciality", path: sector_speciality_analysis_portfolios_path }
+] %>
+<% asset_items = [
+  { label: "Assets", path: assets_path },
+  { label: "Asset summary", path: summary_assets_path },
+  { label: "Wallets", path: wallets_path }
+] %>
+<% analysis_items = [
+  { label: "Compare", path: compare_assets_path },
+  { label: "Asset performance", path: performance_assets_path }
+] %>
+<% transaction_items = [
+  { label: "Transactions", path: transactions_path },
+  { label: "Prices", path: prices_path }
+] %>
+<% settings_items = [
+  { label: "Currencies", path: settings_currencies_path },
+  { label: "FX rates", path: settings_exchange_rates_path },
+  { label: "Categories", path: settings_categories_path },
+  { label: "Indices", path: settings_market_indices_path },
+  { label: "Lookups", path: settings_lookups_path },
+  { label: "Free cash target", path: edit_settings_free_cash_target_path },
+  { label: "Zakaa settings", path: edit_settings_zaka_setting_path },
+  { label: "Export data", path: export_backup_path },
+  { label: "Import data", path: import_backup_path }
+] %>
+
+<header class="app-header">
+  <div class="container mx-auto px-4">
+    <div class="app-header__inner" style="display:flex;align-items:center;min-height:3.5rem;gap:1rem">
+      <%= link_to "Portfolio", root_path, class: "app-header__brand" %>
+
+      <nav class="app-header__nav" style="display:flex;flex-direction:row;align-items:center;flex:1;min-width:0" aria-label="Main" data-controller="nav-menus">
+        <%= link_to "Dashboard", root_path, class: "app-header__link" %>
+        <%= render "shared/nav_menu", label: "Portfolios", items: portfolio_items %>
+        <%= render "shared/nav_menu", label: "Sectors", items: sector_items %>
+        <%= render "shared/nav_menu", label: "Assets", items: asset_items %>
+        <%= render "shared/nav_menu", label: "Analysis", items: analysis_items %>
+        <%= render "shared/nav_menu", label: "Transactions", items: transaction_items %>
+        <%= render "shared/nav_menu", label: "Settings", items: settings_items, align: :end %>
+      </nav>
+
+      <div class="app-header__user">
+        <% if user_signed_in? %>
+          <span class="hidden max-w-[9rem] truncate text-sm text-slate-500 lg:inline xl:max-w-[14rem]"><%= current_user.email %></span>
+          <%= button_to "Sign out", destroy_user_session_path, method: :delete, class: "rounded-md bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-200" %>
+        <% else %>
+          <%= link_to "Sign in", new_user_session_path, class: "text-sm text-blue-600 hover:underline" %>
+          <%= link_to "Sign up", new_user_registration_path, class: "text-sm text-blue-600 hover:underline" %>
+        <% end %>
+      </div>
+    </div>
+  </div>
+</header>

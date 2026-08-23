@@ -1,0 +1,25 @@
+<%# locals: label (String), items (Array of { label:, path: }), align: (:start | :end, optional) %>
+<% panel_class = (local_assigns[:align] == :end) ? "nav-menu-panel nav-menu-panel--end" : "nav-menu-panel" %>
+<% panel_side = (local_assigns[:align] == :end) ? "right:0;left:auto;" : "" %>
+<div class="nav-menu" style="position:relative;flex-shrink:0" data-nav-menus-target="wrapper">
+  <button type="button"
+          class="nav-menu-trigger"
+          data-nav-menus-target="button"
+          data-action="click->nav-menus#toggle"
+          aria-haspopup="true"
+          aria-expanded="false">
+    <%= label %>
+    <svg class="nav-menu-chevron" width="14" height="14" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+      <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+    </svg>
+  </button>
+  <div class="<%= panel_class %>"
+       data-nav-menus-target="panel"
+       role="menu"
+       hidden
+       style="position:absolute;top:100%;<%= panel_side %>z-index:50;margin-top:0.25rem;min-width:11rem;background:#fff;border:1px solid #e2e8f0;border-radius:0.5rem;padding:0.25rem 0;box-shadow:0 10px 15px -3px rgb(0 0 0 / 0.1)">
+    <% items.each do |item| %>
+      <%= link_to item[:label], item[:path], class: "nav-menu-item", role: "menuitem" %>
+    <% end %>
+  </div>
+</div>

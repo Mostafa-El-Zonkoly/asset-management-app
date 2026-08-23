@@ -1,0 +1,67 @@
+<%#
+  Searchable asset (or wallet) dropdown. Locals:
+    collection: [Asset, ...]
+    label: field label text
+    form: optional form builder
+    method: symbol when using form (e.g. :asset_id)
+    name: string when using select_tag (e.g. "asset_a_id")
+    selected: value for select_tag
+    include_blank: true, string prompt, or nil
+    label_class: optional label CSS classes
+    select_class: optional extra select CSS classes
+%>
+<% form = local_assigns[:form] %>
+<% name = local_assigns[:name] %>
+<% method = local_assigns[:method] %>
+<% raise ArgumentError, "form+method or name required" if form.blank? && name.blank? %>
+<% raise ArgumentError, "collection required" if collection.blank? %>
+
+<% field_id = form ? "#{form.object_name}_#{method}" : name.to_s %>
+<% label_css = local_assigns[:label_class].presence || "block text-sm font-medium text-slate-900" %>
+<% select_css = ["mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm", local_assigns[:select_class]].compact.join(" ") %>
+<% blank_option =
+     if local_assigns.key?(:include_blank)
+       include_blank.is_a?(String) ? include_blank : (include_blank ? true : nil)
+     end %>
+
+<div class="space-y-1" data-controller="searchable-select">
+  <%= tag.label label, for: field_id, class: label_css %>
+  <input
+    type="search"
+    autocomplete="off"
+    placeholder="Filter by name or code…"
+    class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+    data-searchable-select-target="filter"
+    data-action="input->searchable-select#filter"
+    aria-label="<%= label %> filter"
+  />
+  <% if form %>
+    <%= form.collection_select(
+      method,
+      collection,
+      :id,
+      ->(asset) { asset_select_label(asset) },
+      { include_blank: blank_option },
+      {
+        id: field_id,
+        class: select_css,
+        data: {
+          searchable_select_target: "select",
+          action: "change->searchable-select#syncFromSelect"
+        }
+      }
+    ) %>
+  <% else %>
+    <%= select_tag(
+      name,
+      options_from_collection_for_select(collection, :id, ->(asset) { asset_select_label(asset) }, local_assigns[:selected]),
+      include_blank: blank_option,
+      id: field_id,
+      class: select_css,
+      data: {
+        searchable_select_target: "select",
+        action: "change->searchable-select#syncFromSelect"
+      }
+    ) %>
+  <% end %>
+</div>

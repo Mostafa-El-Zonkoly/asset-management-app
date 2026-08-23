@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title><%= content_for(:title) || "Portfolio App" %></title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+
+    <%= yield :head %>
+
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" href="/icon.png" type="image/png">
+    <link rel="icon" href="/icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/icon.png">
+    <%= stylesheet_link_tag "tailwind", "data-turbo-track": "reload" %>
+    <%= stylesheet_link_tag "application", "data-turbo-track": "reload" %>
+    <%= stylesheet_link_tag "nav_menu", "data-turbo-track": "reload" %>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" data-turbo-track="reload"></script>
+    <%= javascript_importmap_tags %>
+  </head>
+
+  <body class="min-h-screen bg-slate-50 text-slate-900">
+    <%= render "shared/nav" %>
+    <% if notice.present? %>
+      <p class="fixed top-4 right-4 z-50 rounded-lg bg-emerald-100 px-4 py-2 text-sm text-emerald-900 shadow" role="alert"><%= notice %></p>
+    <% end %>
+    <% if alert.present? %>
+      <p class="fixed top-4 right-4 z-50 rounded-lg bg-red-100 px-4 py-2 text-sm text-red-900 shadow" role="alert"><%= alert %></p>
+    <% end %>
+    <main class="container mx-auto mt-8 px-4 pb-12">
+      <%= yield %>
+    </main>
+  </body>
+</html>

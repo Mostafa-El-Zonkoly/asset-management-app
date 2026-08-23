@@ -1,0 +1,147 @@
+<% content_for :title, "Zakaa statistics" %>
+<%
+  z = @zakaa
+  ccy = @reporting_currency&.code || "reporting"
+  eligible_label =
+    case z[:eligibility_reason]
+    when :above_nisab then "Yes"
+    when :below_nisab then "No"
+    when :nisab_not_configured then "Unknown (nisab not configured)"
+    when :nisab_price_missing then "Unknown (nisab asset has no price)"
+    when :nisab_unavailable then "Unknown (nisab unavailable)"
+    else "—"
+    end
+%>
+<div class="flex flex-wrap items-end justify-between gap-4">
+  <div>
+    <h1 class="text-2xl font-semibold text-slate-900">Zakaa statistics</h1>
+    <p class="mt-1 max-w-3xl text-sm text-slate-600">
+      Zakatable wealth = current value × Zakaa % per <%= link_to "asset", assets_path, class: "text-blue-600 hover:underline" %>
+      (all portfolios + wallets). Eligibility requires zakatable total ≥ nisab (reference asset qty × latest price).
+    </p>
+  </div>
+  <div class="flex flex-wrap gap-2">
+    <%= link_to "Zakaa settings", edit_settings_zaka_setting_path, class: "rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+    <%= link_to "Payment history", zaka_payments_path, class: "rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+    <%= link_to "Record payment", new_zaka_payment_path, class: "rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700" %>
+  </div>
+</div>
+
+<% if @reporting_currency %>
+  <p class="mt-4 text-sm text-slate-600">Totals in reporting currency <span class="font-medium"><%= ccy %></span>.</p>
+<% end %>
+
+<% if @missing_fx_codes&.any? %>
+  <div class="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+    Missing FX into reporting currency for: <strong><%= @missing_fx_codes.join(", ") %></strong>. Totals may be wrong until rates exist.
+  </div>
+<% end %>
+
+<% if z[:payment_overdue] %>
+  <div class="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+    <strong>Payment interval exceeded:</strong>
+    <%= z[:days_since_last_payment] %> days since last Zakaa payment (limit <%= z[:payment_interval_days] %> days).
+    <%= link_to "Record payment", new_zaka_payment_path, class: "font-medium text-amber-950 underline" %>.
+  </div>
+<% end %>
+
+<% if z[:eligibility_reason] == :nisab_not_configured %>
+  <div class="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+    Configure nisab in <%= link_to "Zakaa settings", edit_settings_zaka_setting_path, class: "font-medium underline" %> to determine eligibility.
+  </div>
+<% elsif z[:eligibility_reason] == :nisab_price_missing %>
+  <div class="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+    Nisab reference asset has no latest price. Add a price or choose another asset in <%= link_to "Zakaa settings", edit_settings_zaka_setting_path, class: "font-medium underline" %>.
+  </div>
+<% end %>
+
+<div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+  <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <p class="text-xs font-medium uppercase text-slate-500">Eligible for Zakaa</p>
+    <p class="mt-1 text-xl font-semibold <%= z[:eligible] ? "text-emerald-800" : "text-slate-900" %>"><%= eligible_label %></p>
+  </div>
+  <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <p class="text-xs font-medium uppercase text-slate-500">Subject to Zakaa</p>
+    <p class="mt-1 text-xl font-semibold tabular-nums"><%= number_with_precision(z[:zakatable_total], precision: 2) %> <%= ccy %></p>
+  </div>
+  <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <p class="text-xs font-medium uppercase text-slate-500">Nisab threshold</p>
+    <p class="mt-1 text-xl font-semibold tabular-nums">
+      <% if z[:nisab_threshold] %>
+        <%= number_with_precision(z[:nisab_threshold], precision: 2) %> <%= ccy %>
+      <% else %>
+        —
+      <% end %>
+    </p>
+  </div>
+  <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <p class="text-xs font-medium uppercase text-slate-500">Suggested due (<%= number_with_precision(z[:rate_percentage], precision: 2) %>%)</p>
+    <p class="mt-1 text-xl font-semibold tabular-nums">
+      <% if z[:suggested_due] %>
+        <%= number_with_precision(z[:suggested_due], precision: 2) %> <%= ccy %>
+      <% else %>
+        —
+      <% end %>
+    </p>
+  </div>
+  <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <p class="text-xs font-medium uppercase text-slate-500">Last Zakaa paid</p>
+    <p class="mt-1 text-xl font-semibold">
+      <% if z[:last_payment] %>
+        <%= z[:last_payment].paid_on %>
+        <span class="block text-sm font-normal text-slate-600 tabular-nums">
+          <%= number_with_precision(z[:last_payment].amount, precision: 2) %> <%= z[:last_payment].currency.code %>
+        </span>
+      <% else %>
+        —
+      <% end %>
+    </p>
+  </div>
+  <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <p class="text-xs font-medium uppercase text-slate-500">Days since last payment</p>
+    <p class="mt-1 text-xl font-semibold tabular-nums">
+      <%= z[:days_since_last_payment] || "—" %>
+    </p>
+  </div>
+</div>
+
+<% if z[:rows].blank? %>
+  <p class="mt-8 text-slate-600">No holdings or wallet balances with value. Set Zakaa % on <%= link_to "assets", assets_path, class: "text-blue-600 hover:underline" %> when you add positions.</p>
+<% else %>
+  <div class="mt-8 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+    <table data-controller="sortable-table" class="w-full min-w-[48rem] text-left text-sm">
+      <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+        <tr>
+          <th class="px-4 py-3">Asset</th>
+          <th class="px-4 py-3">Type</th>
+          <th class="px-4 py-3 text-right">Current value</th>
+          <th class="px-4 py-3 text-right">Zakaa %</th>
+          <th class="px-4 py-3 text-right">Subject to Zakaa</th>
+          <th class="px-4 py-3">Portfolios</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% z[:rows].each do |row| %>
+          <tr class="border-t border-slate-100">
+            <td class="px-4 py-3 font-mono">
+              <%= link_to row.asset.code, row.asset, class: "text-blue-600 hover:underline" %>
+              <span class="block text-xs font-sans text-slate-500"><%= row.asset.name %></span>
+            </td>
+            <td class="px-4 py-3 text-slate-600"><%= row.type_descriptor.presence || row.asset.asset_type&.label || "—" %></td>
+            <td class="px-4 py-3 text-right tabular-nums"><%= number_with_precision(row.current_value, precision: 2) %></td>
+            <td class="px-4 py-3 text-right tabular-nums"><%= number_with_precision(row.zaka_percentage, precision: 2) %>%</td>
+            <td class="px-4 py-3 text-right tabular-nums font-medium"><%= number_with_precision(row.zakatable_amount, precision: 2) %></td>
+            <td class="px-4 py-3 text-slate-600"><%= row.portfolio_names %></td>
+          </tr>
+        <% end %>
+      </tbody>
+      <tfoot class="border-t border-slate-200 bg-slate-50 font-medium">
+        <tr>
+          <td colspan="4" class="px-4 py-3 text-right">Total subject to Zakaa</td>
+          <td class="px-4 py-3 text-right tabular-nums"><%= number_with_precision(z[:zakatable_total], precision: 2) %></td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+<% end %>

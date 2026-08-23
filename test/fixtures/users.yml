@@ -1,0 +1,8 @@
+# password for both: password123 (bcrypt cost 4 for faster tests)
+one:
+  email: fixture_one@example.com
+  encrypted_password: $2a$04$0BHDlSpxgPctXgZGno4fkOl.k/gFKo6UmK20zs246zKTjR/azmv4a
+
+two:
+  email: fixture_two@example.com
+  encrypted_password: $2a$04$0BHDlSpxgPctXgZGno4fkOl.k/gFKo6UmK20zs246zKTjR/azmv4a

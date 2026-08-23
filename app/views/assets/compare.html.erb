@@ -1,0 +1,71 @@
+<% content_for :title, "Compare assets" %>
+<h1 class="text-2xl font-semibold">Compare assets</h1>
+<p class="mt-2 max-w-3xl text-sm text-slate-600">
+  Default <span class="font-medium">Auto</span> alignment picks the best cadence:
+  it uses weekly (last price per Mon–Sun week) when one asset is sparse (e.g. Sun/Thu funds), and it uses each quote date when both assets are dense (e.g. daily).
+  The chart shows <span class="font-medium">% change</span> vs the first aligned price in the interval. Left/right axes are independent so both lines use the chart height.
+</p>
+
+<% if @compare_assets.empty? %>
+  <p class="mt-6 text-sm text-slate-600">Add at least one active asset to use comparison.</p>
+<% else %>
+  <div
+    class="mt-6 space-y-6"
+    data-controller="asset-compare-chart"
+    data-asset-compare-chart-url-value="<%= api_assets_compare_path %>"
+  >
+    <%= form_with url: compare_assets_path, method: :get, local: true, html: { class: "rounded-xl border border-slate-200 bg-white p-4 shadow-sm", data: { asset_compare_chart_target: "form" } } do %>
+      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        <%= render "shared/searchable_asset_field", name: :asset_a_id, collection: @compare_assets, label: "Asset A", selected: @asset_a_id, label_class: "block text-sm font-medium text-slate-700" %>
+        <%= render "shared/searchable_asset_field", name: :asset_b_id, collection: @compare_assets, label: "Asset B", selected: @asset_b_id, label_class: "block text-sm font-medium text-slate-700" %>
+        <label class="block text-sm font-medium text-slate-700">
+          From (optional)
+          <%= date_field_tag :from, @from, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm", data: { asset_compare_chart_target: "fromField" } %>
+        </label>
+        <label class="block text-sm font-medium text-slate-700">
+          To (optional)
+          <%= date_field_tag :to, @to, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm", data: { asset_compare_chart_target: "toField" } %>
+        </label>
+        <label class="block text-sm font-medium text-slate-700">
+          Alignment
+          <%= select_tag :alignment,
+                options_for_select(
+                  [
+                    ["Auto (recommended)", "auto"],
+                    ["Weekly (last price per Mon–Sun week)", "weekly"],
+                    ["Each quote date (LOCF)", "calendar"]
+                  ],
+                  @alignment
+                ),
+                class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+        </label>
+      </div>
+
+      <%= hidden_field_tag :range, @preset_range, data: { asset_compare_chart_target: "rangeField" } %>
+
+      <div class="mt-4 flex flex-wrap items-center gap-2">
+        <span class="text-xs font-medium uppercase text-slate-500">Presets</span>
+        <button type="button" class="rounded bg-slate-100 px-2 py-1 text-xs hover:bg-slate-200" data-action="asset-compare-chart#applyPreset" data-range="cw">Current week</button>
+        <button type="button" class="rounded bg-slate-100 px-2 py-1 text-xs hover:bg-slate-200" data-action="asset-compare-chart#applyPreset" data-range="cm">Current month</button>
+        <button type="button" class="rounded bg-slate-100 px-2 py-1 text-xs hover:bg-slate-200" data-action="asset-compare-chart#applyPreset" data-range="cy">Current year</button>
+        <button type="button" class="rounded bg-slate-100 px-2 py-1 text-xs hover:bg-slate-200" data-action="asset-compare-chart#applyPreset" data-range="ytd">YTD</button>
+        <button type="button" class="rounded bg-slate-100 px-2 py-1 text-xs hover:bg-slate-200" data-action="asset-compare-chart#applyPreset" data-range="3m">3M</button>
+        <span class="text-slate-300">|</span>
+        <%= submit_tag "Apply", class: "rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700" %>
+      </div>
+      <p class="mt-2 text-xs text-slate-500">Set both dates for a custom range (overrides presets). Leave dates blank to use the hidden preset from your last preset choice or default current month.</p>
+    <% end %>
+
+    <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <h2 class="font-medium">Relative performance</h2>
+      <p class="mt-1 text-xs text-slate-500">
+        Active range: <span class="font-mono"><%= @range_key %></span>
+        · Alignment: <span class="font-mono"><%= @alignment %></span>
+      </p>
+      <div class="mt-3 min-h-[2.75rem]" data-asset-compare-chart-target="summary"></div>
+      <div class="mt-4 h-[420px] max-h-[60vh]">
+        <canvas class="h-full w-full" data-asset-compare-chart-target="canvas"></canvas>
+      </div>
+    </div>
+  </div>
+<% end %>

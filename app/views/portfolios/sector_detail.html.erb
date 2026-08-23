@@ -1,0 +1,114 @@
+<% content_for :title, "#{@sector.label} — sector assets" %>
+<div class="flex flex-wrap items-end justify-between gap-4">
+  <div>
+    <div class="flex items-center gap-2 text-sm text-slate-500">
+      <%= link_to "← Sector analysis", sector_analysis_portfolios_path, class: "text-blue-600 hover:underline" %>
+    </div>
+    <h1 class="mt-1 text-2xl font-semibold text-slate-900"><%= @sector.label %> — all assets</h1>
+    <p class="mt-1 text-sm text-slate-600">
+      All holdings of direct stocks in this sector, across every portfolio.
+      The same asset held in multiple portfolios appears as separate rows.
+    </p>
+  </div>
+</div>
+
+<% if @reporting_currency %>
+  <p class="mt-4 text-sm text-slate-600">Figures in reporting currency <span class="font-medium"><%= @reporting_currency.code %></span>.</p>
+<% end %>
+
+<div class="mt-6 grid gap-4 sm:grid-cols-3">
+  <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <p class="text-xs uppercase tracking-wide text-slate-500">Sector value</p>
+    <p class="mt-1 text-xl font-semibold"><%= number_with_precision(@filter_total, precision: 2) %> <%= @reporting_currency&.code %></p>
+  </div>
+  <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <p class="text-xs uppercase tracking-wide text-slate-500">Included portfolios total</p>
+    <p class="mt-1 text-xl font-semibold"><%= number_with_precision(@included_total, precision: 2) %> <%= @reporting_currency&.code %></p>
+  </div>
+  <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <p class="text-xs uppercase tracking-wide text-slate-500">Holdings</p>
+    <p class="mt-1 text-xl font-semibold"><%= @rows.size %></p>
+  </div>
+</div>
+
+<% if @rows.blank? %>
+  <p class="mt-8 text-slate-500">No holdings found for this sector.</p>
+<% else %>
+  <div class="mt-8 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+    <table class="min-w-full text-sm">
+      <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+        <tr>
+          <th class="px-4 py-3 text-left">Asset</th>
+          <th class="px-4 py-3 text-left">Speciality</th>
+          <th class="px-4 py-3 text-left">Portfolio</th>
+          <th class="px-4 py-3 text-right">Quantity</th>
+          <th class="px-4 py-3 text-right">Value (<%= @reporting_currency&.code %>)</th>
+          <th class="px-4 py-3 text-right">Cost (<%= @reporting_currency&.code %>)</th>
+          <th class="px-4 py-3 text-right">Unrealised gain</th>
+          <th class="px-4 py-3 text-right">% of sector</th>
+          <th class="px-4 py-3 text-right">% of all sectored</th>
+          <th class="px-4 py-3 text-right">% of included</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100">
+        <% @rows.each do |row| %>
+          <tr class="hover:bg-slate-50">
+            <td class="px-4 py-3">
+              <div class="font-medium text-slate-900"><%= link_to row[:asset].name, asset_path(row[:asset]), class: "hover:text-blue-600 hover:underline" %></div>
+              <div class="text-xs text-slate-400"><%= row[:asset].code %></div>
+            </td>
+            <td class="px-4 py-3 text-slate-600"><%= row[:asset].speciality&.label || "—" %></td>
+            <td class="px-4 py-3 text-slate-600"><%= link_to row[:portfolio].name, portfolio_path(row[:portfolio]), class: "hover:text-blue-600 hover:underline" %></td>
+            <td class="px-4 py-3 text-right font-mono text-slate-700"><%= number_with_precision(row[:quantity], precision: 4, strip_insignificant_zeros: true) %></td>
+            <td class="px-4 py-3 text-right font-mono font-medium"><%= number_with_precision(row[:current_value], precision: 2) %></td>
+            <td class="px-4 py-3 text-right font-mono text-slate-600"><%= number_with_precision(row[:cost_basis], precision: 2) %></td>
+            <td class="px-4 py-3 text-right font-mono <%= row[:unrealised_gain] >= 0 ? 'text-emerald-600' : 'text-red-600' %>">
+              <%= row[:unrealised_gain] >= 0 ? "+" : "" %><%= number_with_precision(row[:unrealised_gain], precision: 2) %>
+            </td>
+            <td class="px-4 py-3 text-right">
+              <div class="flex items-center justify-end gap-2">
+                <div class="h-2 w-16 overflow-hidden rounded-full bg-slate-100">
+                  <div class="h-2 rounded-full bg-violet-400" style="width: <%= [row[:pct_of_filter].to_f, 100].min %>%"></div>
+                </div>
+                <span class="w-12 text-right font-mono text-slate-700"><%= number_with_precision(row[:pct_of_filter], precision: 1) %>%</span>
+              </div>
+            </td>
+            <td class="px-4 py-3 text-right">
+              <div class="flex items-center justify-end gap-2">
+                <div class="h-2 w-16 overflow-hidden rounded-full bg-slate-100">
+                  <div class="h-2 rounded-full bg-blue-500" style="width: <%= [row[:pct_of_sectored].to_f, 100].min %>%"></div>
+                </div>
+                <span class="w-12 text-right font-mono text-slate-700"><%= number_with_precision(row[:pct_of_sectored], precision: 1) %>%</span>
+              </div>
+            </td>
+            <td class="px-4 py-3 text-right">
+              <div class="flex items-center justify-end gap-2">
+                <div class="h-2 w-16 overflow-hidden rounded-full bg-slate-100">
+                  <div class="h-2 rounded-full bg-emerald-500" style="width: <%= [row[:pct_of_included].to_f, 100].min %>%"></div>
+                </div>
+                <span class="w-12 text-right font-mono text-slate-700"><%= number_with_precision(row[:pct_of_included], precision: 1) %>%</span>
+              </div>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+      <tfoot class="border-t-2 border-slate-200 bg-slate-50 font-semibold text-sm">
+        <tr>
+          <td class="px-4 py-3" colspan="4">Total</td>
+          <% total_cost = @rows.sum { |r| r[:cost_basis] }
+             total_unreal = @rows.sum { |r| r[:unrealised_gain] }
+             total_pct_sectored = @rows.sum { |r| r[:pct_of_sectored] }
+             total_pct_included = @rows.sum { |r| r[:pct_of_included] } %>
+          <td class="px-4 py-3 text-right font-mono"><%= number_with_precision(@filter_total, precision: 2) %></td>
+          <td class="px-4 py-3 text-right font-mono"><%= number_with_precision(total_cost, precision: 2) %></td>
+          <td class="px-4 py-3 text-right font-mono <%= total_unreal >= 0 ? 'text-emerald-600' : 'text-red-600' %>">
+            <%= total_unreal >= 0 ? "+" : "" %><%= number_with_precision(total_unreal, precision: 2) %>
+          </td>
+          <td class="px-4 py-3 text-right font-mono">100.0%</td>
+          <td class="px-4 py-3 text-right font-mono"><%= number_with_precision(total_pct_sectored, precision: 1) %>%</td>
+          <td class="px-4 py-3 text-right font-mono"><%= number_with_precision(total_pct_included, precision: 1) %>%</td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+<% end %>

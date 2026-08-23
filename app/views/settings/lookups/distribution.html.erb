@@ -1,0 +1,183 @@
+<% content_for :title, "#{@table.humanize} — distribution" %>
+
+<div class="flex flex-wrap items-end justify-between gap-4">
+  <div>
+    <div class="text-sm text-slate-500">
+      <%= link_to "← Lookups", settings_lookups_path, class: "text-blue-600 hover:underline" %>
+    </div>
+    <h1 class="mt-1 text-2xl font-semibold text-slate-900"><%= @table.humanize %> — distribution</h1>
+    <p class="mt-1 text-sm text-slate-600">
+      Non-wallet positions with current holdings across all portfolios, converted to
+      <% if @reporting_currency %>
+        <span class="font-medium"><%= @reporting_currency.code %></span>.
+      <% else %>
+        reporting currency.
+      <% end %>
+      Click any column header to sort. Click again to reverse.
+    </p>
+  </div>
+</div>
+
+<% if @missing_fx_codes&.any? %>
+  <div class="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+    Missing FX into reporting currency for: <strong><%= @missing_fx_codes.join(", ") %></strong>. Totals may be incomplete.
+  </div>
+<% end %>
+
+<% hint =
+     case @table
+     when "sectors", "specialities"
+       "Only direct stocks are included in this breakdown."
+     when "fund_types", "fund_styles", "management_styles"
+       "Only mutual funds are included in this breakdown."
+     end %>
+<% if hint %>
+  <p class="mt-2 text-xs text-slate-600"><%= hint %></p>
+<% end %>
+
+<% if @distribution.rows.empty? %>
+  <p class="mt-8 text-slate-500">No holdings found for this distribution.</p>
+<% else %>
+
+<div class="mt-6 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+  <table id="dist-table" class="w-full min-w-[60rem] text-left text-sm">
+    <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+      <tr>
+        <th class="cursor-pointer select-none px-3 py-3 hover:bg-slate-100" data-col="0" data-type="string">
+          Name <span class="sort-icon ml-1 text-slate-300">↕</span>
+        </th>
+        <th class="cursor-pointer select-none px-3 py-3 text-right hover:bg-slate-100" data-col="1" data-type="number">
+          Assets <span class="sort-icon ml-1 text-slate-300">↕</span>
+        </th>
+        <th class="cursor-pointer select-none px-3 py-3 text-right hover:bg-slate-100" data-col="2" data-type="number">
+          Total cost <span class="sort-icon ml-1 text-slate-300">↕</span>
+        </th>
+        <th class="cursor-pointer select-none px-3 py-3 text-right hover:bg-slate-100" data-col="3" data-type="number">
+          Total value <span class="sort-icon ml-1 text-slate-300">↕</span>
+        </th>
+        <th class="cursor-pointer select-none px-3 py-3 text-right hover:bg-slate-100" data-col="4" data-type="number">
+          Value % <span class="sort-icon ml-1 text-slate-300">↕</span>
+        </th>
+        <th class="cursor-pointer select-none px-3 py-3 text-right hover:bg-slate-100" data-col="5" data-type="number">
+          Unrealized <span class="sort-icon ml-1 text-slate-300">↕</span>
+        </th>
+        <th class="cursor-pointer select-none px-3 py-3 text-right hover:bg-slate-100" data-col="6" data-type="number">
+          Unreal. % <span class="sort-icon ml-1 text-slate-300">↕</span>
+        </th>
+        <th class="cursor-pointer select-none px-3 py-3 text-right hover:bg-slate-100" data-col="7" data-type="number">
+          Realized <span class="sort-icon ml-1 text-slate-300">↕</span>
+        </th>
+        <th class="cursor-pointer select-none px-3 py-3 text-right hover:bg-slate-100" data-col="8" data-type="number">
+          Real. % <span class="sort-icon ml-1 text-slate-300">↕</span>
+        </th>
+        <th class="cursor-pointer select-none px-3 py-3 text-right hover:bg-slate-100" data-col="9" data-type="number">
+          Total gain <span class="sort-icon ml-1 text-slate-300">↕</span>
+        </th>
+        <th class="cursor-pointer select-none px-3 py-3 text-right hover:bg-slate-100" data-col="10" data-type="number">
+          Total gain % <span class="sort-icon ml-1 text-slate-300">↕</span>
+        </th>
+      </tr>
+    </thead>
+    <tbody id="dist-tbody">
+      <% @distribution.rows.each do |row| %>
+        <tr class="border-t border-slate-100 hover:bg-slate-50"
+            data-vals="<%= [
+              row.label,
+              row.asset_count,
+              row.total_cost.to_f,
+              row.total_value.to_f,
+              row.value_share_pct.to_f,
+              row.unrealised_gain.to_f,
+              row.unrealised_gain_pct.to_f,
+              row.realised_gain.to_f,
+              row.realised_gain_pct.to_f,
+              row.total_gain.to_f,
+              row.total_gain_pct.to_f
+            ].to_json %>">
+          <td class="px-3 py-2">
+            <span class="font-medium text-slate-900"><%= row.label %></span>
+            <% if row.key.present? %>
+              <span class="ml-2 font-mono text-xs text-slate-400"><%= row.key %></span>
+            <% end %>
+          </td>
+          <td class="px-3 py-2 text-right tabular-nums"><%= row.asset_count %></td>
+          <td class="px-3 py-2 text-right tabular-nums"><%= number_with_precision(row.total_cost, precision: 2) %></td>
+          <td class="px-3 py-2 text-right tabular-nums"><%= number_with_precision(row.total_value, precision: 2) %></td>
+          <td class="px-3 py-2 text-right tabular-nums text-slate-700"><%= number_with_precision(row.value_share_pct, precision: 2) %>%</td>
+          <td class="px-3 py-2 text-right tabular-nums"><%= format_pnl_value(row.unrealised_gain, precision: 2) %></td>
+          <td class="px-3 py-2 text-right tabular-nums"><%= format_pnl_percent(row.unrealised_gain_pct, precision: 2) %></td>
+          <td class="px-3 py-2 text-right tabular-nums"><%= format_pnl_value(row.realised_gain, precision: 2) %></td>
+          <td class="px-3 py-2 text-right tabular-nums"><%= format_pnl_percent(row.realised_gain_pct, precision: 2) %></td>
+          <td class="px-3 py-2 text-right tabular-nums"><%= format_pnl_value(row.total_gain, precision: 2) %></td>
+          <td class="px-3 py-2 text-right tabular-nums"><%= format_pnl_percent(row.total_gain_pct, precision: 2) %></td>
+        </tr>
+      <% end %>
+    </tbody>
+    <% t = @distribution.totals %>
+    <tfoot>
+      <tr class="border-t-2 border-slate-200 bg-slate-50/80 font-semibold text-slate-900">
+        <td class="px-3 py-2"><%= t.label %></td>
+        <td class="px-3 py-2 text-right tabular-nums"><%= t.asset_count %></td>
+        <td class="px-3 py-2 text-right tabular-nums"><%= number_with_precision(t.total_cost, precision: 2) %></td>
+        <td class="px-3 py-2 text-right tabular-nums"><%= number_with_precision(t.total_value, precision: 2) %></td>
+        <td class="px-3 py-2 text-right tabular-nums"><%= number_with_precision(t.value_share_pct, precision: 2) %>%</td>
+        <td class="px-3 py-2 text-right tabular-nums"><%= format_pnl_value(t.unrealised_gain, precision: 2) %></td>
+        <td class="px-3 py-2 text-right tabular-nums"><%= format_pnl_percent(t.unrealised_gain_pct, precision: 2) %></td>
+        <td class="px-3 py-2 text-right tabular-nums"><%= format_pnl_value(t.realised_gain, precision: 2) %></td>
+        <td class="px-3 py-2 text-right tabular-nums"><%= format_pnl_percent(t.realised_gain_pct, precision: 2) %></td>
+        <td class="px-3 py-2 text-right tabular-nums"><%= format_pnl_value(t.total_gain, precision: 2) %></td>
+        <td class="px-3 py-2 text-right tabular-nums"><%= format_pnl_percent(t.total_gain_pct, precision: 2) %></td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+
+<script>
+(function () {
+  var tbody = document.getElementById("dist-tbody");
+  var ths   = document.querySelectorAll("#dist-table thead th");
+  var sortCol = null, sortAsc = true;
+
+  ths.forEach(function (th) {
+    th.addEventListener("click", function () {
+      var col  = parseInt(th.dataset.col, 10);
+      var type = th.dataset.type;
+
+      if (sortCol === col) {
+        sortAsc = !sortAsc;
+      } else {
+        sortCol = col;
+        sortAsc = true;
+      }
+
+      // Update icons
+      ths.forEach(function (h) {
+        h.querySelector(".sort-icon").textContent = "↕";
+        h.querySelector(".sort-icon").classList.add("text-slate-300");
+        h.querySelector(".sort-icon").classList.remove("text-slate-700");
+      });
+      th.querySelector(".sort-icon").textContent = sortAsc ? "↑" : "↓";
+      th.querySelector(".sort-icon").classList.remove("text-slate-300");
+      th.querySelector(".sort-icon").classList.add("text-slate-700");
+
+      var rows = Array.from(tbody.querySelectorAll("tr"));
+      rows.sort(function (a, b) {
+        var av = JSON.parse(a.dataset.vals)[col];
+        var bv = JSON.parse(b.dataset.vals)[col];
+        if (type === "number") {
+          av = parseFloat(av) || 0;
+          bv = parseFloat(bv) || 0;
+        } else {
+          av = String(av).toLowerCase();
+          bv = String(bv).toLowerCase();
+        }
+        if (av < bv) return sortAsc ? -1 : 1;
+        if (av > bv) return sortAsc ? 1 : -1;
+        return 0;
+      });
+      rows.forEach(function (r) { tbody.appendChild(r); });
+    });
+  });
+})();
+</script>
+<% end %>

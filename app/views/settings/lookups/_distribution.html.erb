@@ -1,0 +1,88 @@
+<% unless distribution.blank? %>
+<div class="mt-10 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+  <h2 class="text-lg font-semibold text-slate-900">Holdings by lookup</h2>
+  <p class="mt-1 text-sm text-slate-600">
+    Non-wallet positions across all portfolios, converted to
+    <% if reporting_currency %>
+      <span class="font-medium"><%= reporting_currency.code %></span>.
+    <% else %>
+      reporting currency.
+    <% end %>
+    Value % is each row’s share of the total value in this table. Gain % is vs that row’s total cost (same idea as portfolio cards).
+  </p>
+  <% if missing_fx_codes&.any? %>
+    <div class="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+      Missing FX into reporting currency for: <strong><%= missing_fx_codes.join(", ") %></strong>.
+    </div>
+  <% end %>
+  <% hint =
+       case distribution.table_key
+       when "sectors", "specialities"
+         "Only direct stocks are included in this breakdown."
+       when "fund_types", "fund_styles", "management_styles"
+         "Only mutual funds are included in this breakdown."
+       end %>
+  <% if hint.present? %>
+    <p class="mt-2 text-xs text-slate-600"><%= hint %></p>
+  <% end %>
+
+  <div class="mt-4 overflow-x-auto">
+    <table class="w-full min-w-[60rem] text-left text-sm">
+      <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+        <tr>
+          <th class="px-3 py-2">Name</th>
+          <th class="px-3 py-2 text-right">Assets</th>
+          <th class="px-3 py-2 text-right">Total cost</th>
+          <th class="px-3 py-2 text-right">Total value</th>
+          <th class="px-3 py-2 text-right">Value %</th>
+          <th class="px-3 py-2 text-right">Unrealized</th>
+          <th class="px-3 py-2 text-right">Unreal. %</th>
+          <th class="px-3 py-2 text-right">Realized</th>
+          <th class="px-3 py-2 text-right">Real. %</th>
+          <th class="px-3 py-2 text-right">Total gain</th>
+          <th class="px-3 py-2 text-right">Total gain %</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% distribution.rows.each do |row| %>
+          <tr class="border-t border-slate-100">
+            <td class="px-3 py-2">
+              <span class="font-medium text-slate-900"><%= row.label %></span>
+              <% if row.key.present? %>
+                <span class="ml-2 font-mono text-xs text-slate-500"><%= row.key %></span>
+              <% end %>
+            </td>
+            <td class="px-3 py-2 text-right tabular-nums"><%= row.asset_count %></td>
+            <td class="px-3 py-2 text-right tabular-nums"><%= number_with_precision(row.total_cost, precision: 2) %></td>
+            <td class="px-3 py-2 text-right tabular-nums"><%= number_with_precision(row.total_value, precision: 2) %></td>
+            <td class="px-3 py-2 text-right tabular-nums text-slate-700"><%= number_with_precision(row.value_share_pct, precision: 2) %>%</td>
+            <td class="px-3 py-2 text-right tabular-nums"><%= format_pnl_value(row.unrealised_gain, precision: 2) %></td>
+            <td class="px-3 py-2 text-right tabular-nums"><%= format_pnl_percent(row.unrealised_gain_pct, precision: 2) %></td>
+            <td class="px-3 py-2 text-right tabular-nums"><%= format_pnl_value(row.realised_gain, precision: 2) %></td>
+            <td class="px-3 py-2 text-right tabular-nums"><%= format_pnl_percent(row.realised_gain_pct, precision: 2) %></td>
+            <td class="px-3 py-2 text-right tabular-nums"><%= format_pnl_value(row.total_gain, precision: 2) %></td>
+            <td class="px-3 py-2 text-right tabular-nums"><%= format_pnl_percent(row.total_gain_pct, precision: 2) %></td>
+          </tr>
+        <% end %>
+      </tbody>
+      <% t = distribution.totals %>
+      <tfoot>
+        <tr class="border-t-2 border-slate-200 bg-slate-50/80 font-semibold text-slate-900">
+          <td class="px-3 py-2"><%= t.label %></td>
+          <td class="px-3 py-2 text-right tabular-nums"><%= t.asset_count %></td>
+          <td class="px-3 py-2 text-right tabular-nums"><%= number_with_precision(t.total_cost, precision: 2) %></td>
+          <td class="px-3 py-2 text-right tabular-nums"><%= number_with_precision(t.total_value, precision: 2) %></td>
+          <td class="px-3 py-2 text-right tabular-nums"><%= number_with_precision(t.value_share_pct, precision: 2) %>%</td>
+          <td class="px-3 py-2 text-right tabular-nums"><%= format_pnl_value(t.unrealised_gain, precision: 2) %></td>
+          <td class="px-3 py-2 text-right tabular-nums"><%= format_pnl_percent(t.unrealised_gain_pct, precision: 2) %></td>
+          <td class="px-3 py-2 text-right tabular-nums"><%= format_pnl_value(t.realised_gain, precision: 2) %></td>
+          <td class="px-3 py-2 text-right tabular-nums"><%= format_pnl_percent(t.realised_gain_pct, precision: 2) %></td>
+          <td class="px-3 py-2 text-right tabular-nums"><%= format_pnl_value(t.total_gain, precision: 2) %></td>
+          <td class="px-3 py-2 text-right tabular-nums"><%= format_pnl_percent(t.total_gain_pct, precision: 2) %></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
+<% end %>
+

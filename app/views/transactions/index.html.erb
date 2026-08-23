@@ -1,0 +1,48 @@
+<% content_for :title, "Transactions" %>
+<div class="flex items-center justify-between">
+  <h1 class="text-2xl font-semibold">Transactions</h1>
+  <%= link_to "New transaction", new_transaction_path, class: "rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700" %>
+</div>
+
+<%= search_form_for @q, url: transactions_path, method: :get, class: "mt-4 flex flex-wrap gap-2" do |f| %>
+  <%= f.collection_select :portfolio_id_eq, Portfolio.order(:name), :id, :name, { include_blank: "Portfolio" }, class: "rounded-md border border-slate-300 px-2 py-2 text-sm" %>
+  <%= f.collection_select :transaction_type_id_eq, TransactionType.active.order(:position), :id, :label, { include_blank: "Type" }, class: "rounded-md border border-slate-300 px-2 py-2 text-sm" %>
+  <%= f.submit "Filter", class: "rounded-md bg-slate-800 px-3 py-2 text-sm text-white" %>
+<% end %>
+
+<div class="mt-6 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+  <table data-controller="sortable-table" class="w-full text-left text-sm">
+    <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+      <tr><th class="px-3 py-2">Date</th><th>Portfolio</th><th>Type</th><th>Asset</th><th class="text-right">Qty</th><th class="text-right">Current value</th><th class="text-right">Gain %</th><th class="text-right">Amount</th><th class="px-3 py-2 text-right"></th></tr>
+    </thead>
+    <tbody>
+      <% @transactions.each do |t| %>
+        <tr class="border-t border-slate-100">
+          <td class="px-3 py-2 whitespace-nowrap"><%= l t.date.to_date %></td>
+          <td><%= t.portfolio&.name || "—" %></td>
+          <td><%= t.transaction_type.label %></td>
+          <td><%= link_to t.asset.code, t.asset, class: "text-blue-600 hover:underline" %></td>
+          <td class="text-right whitespace-nowrap tabular-nums"><%= number_with_precision(t.quantity, precision: 8, strip_insignificant_zeros: true) %></td>
+          <% px = t.asset.wallet? ? nil : @latest_price_by_asset_id[t.asset_id] %>
+          <td class="text-right whitespace-nowrap tabular-nums">
+            <% if px %>
+              <%= "#{number_with_precision(t.quantity.to_d * px, precision: 2)} #{t.asset.currency.code}" %>
+            <% else %>
+              —
+            <% end %>
+          </td>
+          <td class="text-right whitespace-nowrap"><%= format_pnl_percent(transaction_list_gain_percent(t, px), precision: 2) %></td>
+          <td class="text-right whitespace-nowrap tabular-nums"><%= number_with_precision(t.total_amount, precision: 2) %> <%= t.currency.code %></td>
+          <td class="px-3 py-2 text-right whitespace-nowrap">
+            <%= link_to "Details", transaction_path(t), class: "text-sm text-blue-600 hover:underline" %>
+            <span class="mx-1 text-slate-300">|</span>
+            <%= link_to "Edit", edit_transaction_path(t), class: "text-sm text-blue-600 hover:underline" %>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>
+<% if @pagy.pages > 1 %>
+  <div class="mt-4"><%== pagy_nav(@pagy) if @pagy %></div>
+<% end %>

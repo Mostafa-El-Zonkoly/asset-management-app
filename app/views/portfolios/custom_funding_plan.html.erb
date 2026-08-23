@@ -1,0 +1,195 @@
+<% content_for :title, "Custom funding plan" %>
+
+<div class="flex flex-wrap items-end justify-between gap-4">
+  <div>
+    <h1 class="text-2xl font-semibold text-slate-900">Custom funding plan</h1>
+    <p class="mt-1 text-sm text-slate-600">
+      Enter the amount you plan to add to each portfolio and see the resulting overall weights and target deviations.
+    </p>
+  </div>
+  <div class="flex gap-2">
+    <%= link_to "Auto-distribute plan", funding_plan_portfolios_path, class: "rounded-md border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50" %>
+    <%= link_to "Back to portfolios", portfolios_path, class: "rounded-md border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50" %>
+  </div>
+</div>
+
+<% if @reporting_currency %>
+  <p class="mt-4 text-sm text-slate-600">All values are shown in reporting currency <span class="font-medium"><%= @reporting_currency.code %></span>.</p>
+<% end %>
+
+<div class="mt-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+  <%= form_with url: custom_funding_plan_portfolios_path, method: :get, local: true do |f| %>
+    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <% @portfolios.each do |portfolio| %>
+        <div>
+          <label class="block text-sm font-medium text-slate-700"><%= portfolio.name %></label>
+          <%= text_field_tag "amounts[#{portfolio.id}]",
+                params.dig(:amounts, portfolio.id.to_s),
+                placeholder: "0",
+                class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+        </div>
+      <% end %>
+
+      <div>
+        <label class="block text-sm font-medium text-slate-700">Free cash wallets</label>
+        <%= text_field_tag :wallet_amount,
+              params[:wallet_amount],
+              placeholder: "0",
+              class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+      </div>
+    </div>
+
+    <div class="mt-4 flex items-center gap-3">
+      <%= f.submit "Calculate weights", class: "rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 cursor-pointer" %>
+      <%= link_to "Clear", custom_funding_plan_portfolios_path, class: "text-sm text-slate-500 hover:text-slate-700" %>
+    </div>
+  <% end %>
+</div>
+
+<% if @plan.present? %>
+  <%
+    total_addition = @plan[:total_addition]
+    current_total  = @plan[:current_total]
+    resulted_total = @plan[:resulted_total]
+  %>
+
+  <div class="mt-6 grid gap-4 sm:grid-cols-3">
+    <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <p class="text-xs uppercase text-slate-500">Total addition</p>
+      <p class="mt-1 text-lg font-semibold tabular-nums"><%= number_with_precision(total_addition, precision: 2, delimiter: ",") %></p>
+    </div>
+    <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <p class="text-xs uppercase text-slate-500">Current total</p>
+      <p class="mt-1 text-lg font-semibold tabular-nums"><%= number_with_precision(current_total, precision: 2, delimiter: ",") %></p>
+    </div>
+    <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <p class="text-xs uppercase text-slate-500">Resulted total</p>
+      <p class="mt-1 text-lg font-semibold tabular-nums"><%= number_with_precision(resulted_total, precision: 2, delimiter: ",") %></p>
+    </div>
+  </div>
+
+  <div class="mt-8 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+    <div class="border-b border-slate-100 px-4 py-3 font-medium">Resulting weight distribution</div>
+    <table data-controller="sortable-table" class="w-full min-w-[64rem] text-left text-sm">
+      <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+        <tr>
+          <th class="px-4 py-2">Bucket</th>
+          <th class="px-4 py-2 text-right">Current value</th>
+          <th class="px-4 py-2 text-right">Current weight</th>
+          <th class="px-4 py-2 text-right">Addition</th>
+          <th class="px-4 py-2 text-right">Resulted value</th>
+          <th class="px-4 py-2 text-right">Resulted weight</th>
+          <th class="px-4 py-2 text-right">Weight change</th>
+          <th class="px-4 py-2 text-right">Deviation (amount)</th>
+          <th class="px-4 py-2 text-right">Deviation (%)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @plan[:rows].each do |row| %>
+          <%
+            dev_amount = row[:deviation_after_add_amount]
+            dev_pct    = row[:deviation_after_add_pct]
+            change     = row[:pct_change].to_d
+          %>
+          <tr class="border-t border-slate-100 hover:bg-slate-50">
+
+            <%# Bucket name %>
+            <td class="px-4 py-2 font-medium" data-sort-value="<%= row[:name] %>">
+              <% if row[:kind] == :portfolio %>
+                <%= link_to row[:name], row[:portfolio], class: "text-blue-600 hover:underline" %>
+              <% else %>
+                <span class="text-slate-700"><%= row[:name] %></span>
+              <% end %>
+            </td>
+
+            <%# Current value %>
+            <td class="px-4 py-2 text-right tabular-nums"
+                data-sort-value="<%= row[:current_value].to_f %>">
+              <%= number_with_precision(row[:current_value], precision: 2, delimiter: ",") %>
+            </td>
+
+            <%# Current weight %>
+            <td class="px-4 py-2 text-right tabular-nums text-slate-500"
+                data-sort-value="<%= row[:current_pct].to_f %>">
+              <%= number_with_precision(row[:current_pct], precision: 2) %>%
+            </td>
+
+            <%# Addition %>
+            <td class="px-4 py-2 text-right tabular-nums"
+                data-sort-value="<%= row[:addition].to_f %>">
+              <% if row[:addition].to_d.positive? %>
+                <span class="font-medium text-emerald-700">+<%= number_with_precision(row[:addition], precision: 2, delimiter: ",") %></span>
+              <% else %>
+                <span class="text-slate-400" data-sort-value="0">—</span>
+              <% end %>
+            </td>
+
+            <%# Resulted value %>
+            <td class="px-4 py-2 text-right tabular-nums font-medium"
+                data-sort-value="<%= row[:resulted_value].to_f %>">
+              <%= number_with_precision(row[:resulted_value], precision: 2, delimiter: ",") %>
+            </td>
+
+            <%# Resulted weight %>
+            <td class="px-4 py-2 text-right tabular-nums font-semibold"
+                data-sort-value="<%= row[:resulted_pct].to_f %>">
+              <%= number_with_precision(row[:resulted_pct], precision: 2) %>%
+            </td>
+
+            <%# Weight change (pp) %>
+            <td class="px-4 py-2 text-right tabular-nums"
+                data-sort-value="<%= change.to_f %>">
+              <% if change.abs < 0.005 %>
+                <span class="text-slate-400">—</span>
+              <% elsif change.positive? %>
+                <span class="text-emerald-700">+<%= number_with_precision(change, precision: 2) %>pp</span>
+              <% else %>
+                <span class="text-red-600"><%= number_with_precision(change, precision: 2) %>pp</span>
+              <% end %>
+            </td>
+
+            <%# Deviation (amount) %>
+            <td class="px-4 py-2 text-right tabular-nums"
+                data-sort-value="<%= dev_amount.to_f %>">
+              <% if dev_amount.nil? %>
+                <span class="text-slate-400">—</span>
+              <% else %>
+                <%= format_target_deviation_value(dev_amount, deviation_pct: dev_pct, precision: 2) %>
+              <% end %>
+            </td>
+
+            <%# Deviation (%) %>
+            <td class="px-4 py-2 text-right tabular-nums"
+                data-sort-value="<%= dev_pct.to_f %>">
+              <% if dev_pct.nil? %>
+                <span class="text-slate-400">—</span>
+              <% else %>
+                <%= format_target_deviation_percent(dev_pct, precision: 2) %>
+              <% end %>
+            </td>
+
+          </tr>
+        <% end %>
+
+        <%# Totals row — pinned at the bottom, never sorted %>
+        <tr class="border-t-2 border-slate-300 bg-slate-50 font-semibold" data-sortable="false">
+          <td class="px-4 py-2">Total</td>
+          <td class="px-4 py-2 text-right tabular-nums"><%= number_with_precision(current_total, precision: 2, delimiter: ",") %></td>
+          <td class="px-4 py-2 text-right tabular-nums">100.00%</td>
+          <td class="px-4 py-2 text-right tabular-nums">
+            <% if total_addition.to_d.positive? %>
+              <span class="text-emerald-700">+<%= number_with_precision(total_addition, precision: 2, delimiter: ",") %></span>
+            <% else %>
+              <span class="text-slate-400">—</span>
+            <% end %>
+          </td>
+          <td class="px-4 py-2 text-right tabular-nums"><%= number_with_precision(resulted_total, precision: 2, delimiter: ",") %></td>
+          <td class="px-4 py-2 text-right tabular-nums">100.00%</td>
+          <td class="px-4 py-2 text-right tabular-nums text-slate-400">—</td>
+          <td class="px-4 py-2 text-right tabular-nums text-slate-400">—</td>
+          <td class="px-4 py-2 text-right tabular-nums text-slate-400">—</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+<% end %>

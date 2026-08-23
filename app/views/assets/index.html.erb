@@ -1,0 +1,53 @@
+<% content_for :title, "Assets" %>
+<div class="flex flex-wrap items-center justify-between gap-4">
+  <h1 class="text-2xl font-semibold">Assets</h1>
+  <%= link_to "New asset", new_asset_path, class: "rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700" %>
+</div>
+
+<%= search_form_for @q, url: assets_path, method: :get, class: "mt-4 flex flex-wrap gap-2" do |f| %>
+  <%= f.search_field :code_or_name_cont, placeholder: "Code or name", class: "rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+  <%= f.collection_select :category_id_eq, Category.order(:name), :id, :name, { include_blank: "Category" }, class: "rounded-md border border-slate-300 px-2 py-2 text-sm" %>
+  <%= f.collection_select :asset_type_id_eq, AssetType.active.order(:position), :id, :label, { include_blank: "Type" }, class: "rounded-md border border-slate-300 px-2 py-2 text-sm" %>
+  <%= f.submit "Filter", class: "rounded-md bg-slate-800 px-3 py-2 text-sm text-white" %>
+<% end %>
+
+<div class="mt-6 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+  <table data-controller="sortable-table" class="w-full min-w-[800px] text-left text-sm">
+    <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+      <tr>
+        <th class="px-3 py-2">Code</th>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Sector</th>
+        <th>Price</th>
+        <th>Qty</th>
+        <th>Value</th>
+        <th>Unreal %</th>
+        <th>Zakaa %</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @assets.each do |a| %>
+        <% h = Holding.joins(:portfolio).where(asset: a).order(:id).first %>
+        <% r = h ? HoldingsCalculatorService.for_holding(h) : nil %>
+        <% price = a.asset_prices.where(currency_id: a.currency_id).order(date: :desc).first %>
+        <tr class="border-t border-slate-100">
+          <td class="px-3 py-2 font-mono"><%= link_to a.code, a, class: "text-blue-600 hover:underline" %></td>
+          <td><%= link_to a.name, a, class: "text-blue-600 hover:underline" %></td>
+          <td><%= a.asset_type.label %></td>
+          <td><%= a.sector&.label || "—" %></td>
+          <td><%= price ? number_with_precision(price.price, precision: 4) : "—" %></td>
+          <td><%= h ? number_with_precision(h.quantity, precision: 4) : "—" %></td>
+          <td><%= r ? number_with_precision(r.current_value, precision: 2) : "—" %></td>
+          <td><%= r && !a.wallet? ? format_pnl_percent(r.unrealised_gain_pct, precision: 2) : "—" %></td>
+          <td class="tabular-nums"><%= number_with_precision(a.zaka_percentage, precision: 2) %>%</td>
+          <td><%= link_to "Prices", prices_path(asset_id: a.id, return_to: "asset", anchor: "add-price"), class: "text-xs text-blue-600 hover:underline" %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>
+<% if @pagy.pages > 1 %>
+  <div class="mt-4"><%== pagy_nav(@pagy) if @pagy %></div>
+<% end %>

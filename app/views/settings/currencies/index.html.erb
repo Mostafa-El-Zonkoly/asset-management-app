@@ -1,0 +1,19 @@
+<% content_for :title, "Currencies" %>
+<h1 class="text-2xl font-semibold">Currencies</h1>
+<%= link_to "New currency", new_settings_currency_path, class: "mt-4 inline-block rounded-md bg-blue-600 px-4 py-2 text-sm text-white" %>
+<ul class="mt-6 space-y-2">
+  <% @currencies.each do |c| %>
+    <li class="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3">
+      <div>
+        <span class="font-mono font-semibold"><%= c.code %></span>
+        <%= c.is_base ? tag.span("Base", class: "ml-2 rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-800") : "" %>
+        <p class="text-sm text-slate-600"><%= c.name %> (<%= c.symbol %>)</p>
+      </div>
+      <div class="flex gap-2">
+        <%= button_to "Set base", set_base_settings_currency_path(c), method: :post, class: "text-xs text-blue-600" unless c.is_base %>
+        <%= link_to "Edit", edit_settings_currency_path(c), class: "text-sm" %>
+        <%= button_to "Delete", settings_currency_path(c), method: :delete, class: "text-sm text-red-600" %>
+      </div>
+    </li>
+  <% end %>
+</ul>

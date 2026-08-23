@@ -1,0 +1,11 @@
+development:
+  adapter: async
+
+test:
+  adapter: test
+
+# No Redis on Render in this setup, so Action Cable uses the in-process async
+# adapter. Fine for a single web instance. If you scale to multiple instances
+# or add Redis, switch this back to the redis adapter.
+production:
+  adapter: async

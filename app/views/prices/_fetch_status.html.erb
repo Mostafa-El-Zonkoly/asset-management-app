@@ -1,0 +1,7 @@
+<% status ||= { running: false, message: (local_assigns[:message] || "Ready.") } %>
+<div id="price_fetch_status" class="flex items-center gap-2 text-sm text-slate-700">
+  <% if status[:running] %>
+    <span class="inline-block h-2 w-2 animate-pulse rounded-full bg-blue-600"></span>
+  <% end %>
+  <span><%= status[:message] %></span>
+</div>

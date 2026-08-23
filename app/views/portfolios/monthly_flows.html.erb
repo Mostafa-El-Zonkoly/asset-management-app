@@ -1,0 +1,102 @@
+<% content_for :title, "Monthly cash flows" %>
+<div class="flex flex-wrap items-end justify-between gap-4">
+  <div>
+    <h1 class="text-2xl font-semibold text-slate-900">Monthly cash flows</h1>
+    <p class="mt-1 max-w-3xl text-sm text-slate-600">
+      Deposits and withdrawals hit <%= link_to "wallets", wallets_path, class: "text-blue-600 hover:underline" %> only.
+      Purchases and sales are grouped by <%= link_to "portfolio", portfolios_path, class: "text-blue-600 hover:underline" %> (investment holdings, not wallet assets).
+      <span class="font-medium text-slate-800">Net investment</span> is total purchases minus total sales across all portfolios for that month.
+    </p>
+  </div>
+  <%= link_to "Transactions", transactions_path, class: "rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+</div>
+
+<% if @reporting_currency %>
+  <p class="mt-4 text-sm text-slate-600">Amounts are in reporting currency <span class="font-medium"><%= @reporting_currency.code %></span>.</p>
+<% end %>
+
+<% if @missing_fx_codes&.any? %>
+  <div class="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+    Missing FX into reporting currency for: <strong><%= @missing_fx_codes.join(", ") %></strong>. Totals may be wrong until rates exist.
+  </div>
+<% end %>
+
+<% if @monthly_flows.months.blank? %>
+  <p class="mt-8 text-slate-600">No deposits, withdrawals, buys, or sells recorded yet. <%= link_to "Add a transaction", new_transaction_path, class: "text-blue-600 hover:underline" %>.</p>
+<% else %>
+  <div class="mt-8 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+    <table data-controller="sortable-table" class="w-full min-w-[40rem] text-left text-sm">
+      <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+        <tr>
+          <th class="px-4 py-3">Month</th>
+          <th class="px-4 py-3 text-right">Deposits</th>
+          <th class="px-4 py-3 text-right">Withdrawals</th>
+          <th class="px-4 py-3 text-right">Net investment</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @monthly_flows.months.each do |month| %>
+          <tr class="border-t border-slate-100">
+            <td class="px-4 py-3 font-medium text-slate-900"><%= month.label %></td>
+            <td class="px-4 py-3 text-right tabular-nums"><%= number_with_precision(month.deposits, precision: 2) %></td>
+            <td class="px-4 py-3 text-right tabular-nums"><%= number_with_precision(month.withdrawals, precision: 2) %></td>
+            <td class="px-4 py-3 text-right"><%= format_pnl_value(month.net_investment, precision: 2) %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="mt-10 space-y-8">
+    <% @monthly_flows.months.each do |month| %>
+      <section class="rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div class="border-b border-slate-100 px-4 py-3">
+          <h2 class="font-medium text-slate-900"><%= month.label %></h2>
+          <p class="mt-1 text-xs text-slate-600">
+            Deposits <span class="font-mono tabular-nums"><%= number_with_precision(month.deposits, precision: 2) %></span>
+            · Withdrawals <span class="font-mono tabular-nums"><%= number_with_precision(month.withdrawals, precision: 2) %></span>
+            · Net investment <span class="font-mono tabular-nums"><%= number_with_precision(month.net_investment, precision: 2) %></span>
+            <%= @reporting_currency&.code %>
+          </p>
+        </div>
+
+        <% if month.portfolios.blank? %>
+          <p class="px-4 py-4 text-sm text-slate-500">No purchases or sales in portfolios this month.</p>
+        <% else %>
+          <div class="overflow-x-auto">
+            <table class="w-full min-w-[32rem] text-left text-sm">
+              <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+                <tr>
+                  <th class="px-4 py-2">Portfolio</th>
+                  <th class="px-4 py-2 text-right">Purchases</th>
+                  <th class="px-4 py-2 text-right">Sales</th>
+                  <th class="px-4 py-2 text-right">Net (buy − sell)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% month.portfolios.each do |row| %>
+                  <tr class="border-t border-slate-100">
+                    <td class="px-4 py-2">
+                      <%= link_to row.name, portfolio_path(row.portfolio_id), class: "text-blue-600 hover:underline" %>
+                    </td>
+                    <td class="px-4 py-2 text-right tabular-nums"><%= number_with_precision(row.buys, precision: 2) %></td>
+                    <td class="px-4 py-2 text-right tabular-nums"><%= number_with_precision(row.sells, precision: 2) %></td>
+                    <td class="px-4 py-2 text-right"><%= format_pnl_value(row.net, precision: 2) %></td>
+                  </tr>
+                <% end %>
+              </tbody>
+              <tfoot class="border-t border-slate-200 bg-slate-50 text-sm font-medium text-slate-800">
+                <tr>
+                  <td class="px-4 py-2">All portfolios</td>
+                  <td class="px-4 py-2 text-right tabular-nums"><%= number_with_precision(month.portfolios.sum(&:buys), precision: 2) %></td>
+                  <td class="px-4 py-2 text-right tabular-nums"><%= number_with_precision(month.portfolios.sum(&:sells), precision: 2) %></td>
+                  <td class="px-4 py-2 text-right"><%= format_pnl_value(month.net_investment, precision: 2) %></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        <% end %>
+      </section>
+    <% end %>
+  </div>
+<% end %>

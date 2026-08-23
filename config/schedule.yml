@@ -1,0 +1,9 @@
+price_fetch_daily:
+  cron: "30 14 * * 1-5"
+  class: "PriceFetchJob"
+  queue: default
+
+portfolio_snapshot_daily:
+  cron: "0 5 * * *"
+  class: "PortfolioSnapshotJob"
+  queue: default

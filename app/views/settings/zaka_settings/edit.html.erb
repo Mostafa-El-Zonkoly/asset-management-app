@@ -1,0 +1,31 @@
+<% content_for :title, "Zakaa settings" %>
+<h1 class="mb-2 text-2xl font-semibold">Zakaa settings</h1>
+<p class="mb-6 max-w-xl text-sm text-slate-600">
+  Configure the <strong>nisab</strong> threshold (reference asset quantity × latest price), the suggested Zakaa <strong>rate</strong> shown on
+  <%= link_to "Zakaa statistics", zakaa_statistics_portfolios_path, class: "text-blue-600 hover:underline" %>,
+  and how many days after your last payment before an overdue warning appears.
+</p>
+
+<%= form_with model: @zaka_setting, url: settings_zaka_setting_path, method: :patch, class: "max-w-md space-y-4" do |f| %>
+  <% if @zaka_setting.errors.any? %>
+    <div class="rounded-md bg-red-50 p-3 text-sm text-red-800"><%= @zaka_setting.errors.full_messages.to_sentence %></div>
+  <% end %>
+  <div>
+    <%= render "shared/searchable_asset_field", form: f, method: :nisab_asset_id, collection: @assets, label: "Nisab reference asset", include_blank: "— Select asset —" %>
+    <p class="mt-1 text-xs text-slate-600">e.g. gold ETF or silver; must have a latest price in its trading currency.</p>
+  </div>
+  <div>
+    <%= f.label :nisab_quantity, "Nisab quantity (units of asset)", class: "block text-sm font-medium text-slate-900" %>
+    <%= f.number_field :nisab_quantity, step: :any, min: 0, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+  </div>
+  <div>
+    <%= f.label :rate_percentage, "Suggested rate % (0–100)", class: "block text-sm font-medium text-slate-900" %>
+    <%= f.number_field :rate_percentage, step: :any, min: 0, max: 100, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+  </div>
+  <div>
+    <%= f.label :payment_interval_days, "Days between payments (warning)", class: "block text-sm font-medium text-slate-900" %>
+    <%= f.number_field :payment_interval_days, step: 1, min: 1, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+  </div>
+  <%= f.submit "Save", class: "rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700" %>
+  <%= link_to "Cancel", zakaa_statistics_portfolios_path, class: "ml-2 text-sm text-slate-600 hover:text-slate-900" %>
+<% end %>

@@ -1,0 +1,66 @@
+<% content_for :title, "Prices" %>
+<h1 class="text-2xl font-semibold">Prices</h1>
+
+<%= turbo_stream_from "prices_#{current_user.id}" %>
+
+<%= render "fetch_controls", status: @price_fetch_status %>
+
+<div class="mt-8 grid gap-8 lg:grid-cols-2">
+  <div id="add-price" class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm scroll-mt-20">
+    <h2 class="font-medium">Manual price</h2>
+    <%= form_with model: @asset_price, url: prices_path, class: "mt-4 space-y-3" do |f| %>
+      <%= hidden_field_tag :return_to, "asset" if @return_to_asset %>
+      <%= render "shared/searchable_asset_field", form: f, method: :asset_id, collection: @assets, label: "Asset" %>
+      <div>
+        <%= f.label :currency_id, "Currency", class: "block text-sm font-medium text-slate-900" %>
+        <%= f.collection_select :currency_id, @currencies, :id, :code, {}, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+      </div>
+      <div>
+        <%= f.label :date, class: "block text-sm font-medium text-slate-900" %>
+        <%= f.date_field :date, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+      </div>
+      <div>
+        <%= f.label :price, class: "block text-sm font-medium text-slate-900" %>
+        <%= f.number_field :price, step: :any, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm", placeholder: "Price per unit" %>
+      </div>
+      <div>
+        <%= f.label :price_source_id, "Source", class: "block text-sm font-medium text-slate-900" %>
+        <%= f.collection_select :price_source_id, @price_sources, :id, :label, {}, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+      </div>
+      <%= f.submit "Save price", class: "rounded-md bg-blue-600 px-4 py-2 text-sm text-white" %>
+    <% end %>
+  </div>
+</div>
+
+<div class="mt-10 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+  <div class="border-b border-slate-100 px-4 py-3 font-medium">Latest asset prices</div>
+  <table data-controller="sortable-table" class="w-full text-left text-sm">
+    <thead class="bg-slate-50 text-xs uppercase text-slate-500"><tr><th class="px-4 py-2">Asset</th><th>Date</th><th>Price</th><th>CCY</th></tr></thead>
+    <tbody>
+      <% @latest.each do |asset, price| %>
+        <tr class="border-t border-slate-100">
+          <td class="px-4 py-2"><%= link_to asset.code, asset, class: "text-blue-600 hover:underline" %></td>
+          <td><%= price&.date&.iso8601 || "—" %></td>
+          <td><%= price ? number_with_precision(price.price, precision: 6) : "—" %></td>
+          <td><%= asset.currency.code %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>
+
+<div class="mt-8 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+  <div class="border-b border-slate-100 px-4 py-3 font-medium">Index prices</div>
+  <table data-controller="sortable-table" class="w-full text-left text-sm">
+    <thead class="bg-slate-50 text-xs uppercase text-slate-500"><tr><th class="px-4 py-2">Index</th><th>Date</th><th>Price</th></tr></thead>
+    <tbody>
+      <% @indices.each do |idx, price| %>
+        <tr class="border-t border-slate-100">
+          <td class="px-4 py-2"><%= idx.code %></td>
+          <td><%= price&.date&.iso8601 || "—" %></td>
+          <td><%= price ? number_with_precision(price.price, precision: 4) : "—" %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>

@@ -1,0 +1,9 @@
+<% status ||= { running: false, message: "Ready." } %>
+<div id="price_fetch_controls" class="mt-4 flex flex-wrap items-center gap-4">
+  <%= button_to "Fetch prices",
+                fetch_prices_path(format: :turbo_stream),
+                method: :post,
+                disabled: status[:running],
+                class: "rounded-md px-4 py-2 text-sm font-medium text-white #{status[:running] ? 'cursor-not-allowed bg-slate-400' : 'bg-slate-800'}" %>
+  <%= render "prices/fetch_status", status: status %>
+</div>

@@ -1,0 +1,24 @@
+# Version control / editor
+.git
+.gitignore
+.idea
+.DS_Store
+
+# Dev + build artifacts (regenerated inside the image)
+node_modules
+public/assets
+public/packs
+log/*
+!log/.keep
+tmp/*
+!tmp/.keep
+storage/*
+!storage/.keep
+
+# Secrets that should never be baked into the image
+config/master.key
+config/credentials/*.key
+
+# Not needed at runtime
+test
+docker-compose.yml

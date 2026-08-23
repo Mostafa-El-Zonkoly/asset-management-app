@@ -1,0 +1,145 @@
+<%= form_with model: asset, class: "max-w-2xl space-y-4" do |f| %>
+  <% if asset.errors.any? %>
+    <div class="rounded-md bg-red-50 p-3 text-sm text-red-800"><%= asset.errors.full_messages.to_sentence %></div>
+  <% end %>
+  <div class="grid gap-4 md:grid-cols-2">
+    <div>
+      <%= f.label :name, class: "block text-sm font-medium text-slate-900" %>
+      <%= f.text_field :name, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+    </div>
+    <div>
+      <%= f.label :code, class: "block text-sm font-medium text-slate-900" %>
+      <%= f.text_field :code, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+    </div>
+    <div>
+      <%= f.label :category_id, class: "block text-sm font-medium text-slate-900" %>
+      <%= f.collection_select :category_id, @categories, :id, :name, {}, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+    </div>
+    <div>
+      <%= f.label :asset_type_id, "Type", class: "block text-sm font-medium text-slate-900" %>
+      <%= f.collection_select :asset_type_id, @asset_types, :id, :label, {}, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+    </div>
+    <div>
+      <%= f.label :currency_id, class: "block text-sm font-medium text-slate-900" %>
+      <%= f.collection_select :currency_id, @currencies, :id, :code, {}, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+    </div>
+    <div class="flex items-end pb-1">
+      <label class="flex items-center gap-2 text-sm font-medium text-slate-900">
+        <%= f.check_box :active, class: "rounded border-slate-300" %>
+        Active
+      </label>
+    </div>
+    <div>
+      <%= f.label :zaka_percentage, "Zakaa %", class: "block text-sm font-medium text-slate-900" %>
+      <%= f.number_field :zaka_percentage, step: :any, min: 0, max: 100, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+      <p class="mt-1 text-xs text-slate-600">Share of this asset’s value counted toward Zakaa (0–100). Wallets often use 100%.</p>
+    </div>
+  </div>
+  <fieldset class="rounded-lg border border-slate-200 p-4">
+    <legend class="px-1 text-sm font-semibold text-slate-900">Direct stock</legend>
+    <p class="mb-3 text-xs text-slate-600">Used when the asset type is direct stock (sector, speciality, purpose).</p>
+    <div class="grid gap-4 md:grid-cols-2">
+      <div>
+        <%= f.label :stock_purpose_id, "Stock purpose", class: "block text-sm font-medium text-slate-900" %>
+        <%= f.collection_select :stock_purpose_id, @stock_purposes, :id, :label, { include_blank: true }, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+      </div>
+      <div>
+        <%= f.label :sector_id, class: "block text-sm font-medium text-slate-900" %>
+        <%= f.collection_select :sector_id, @sectors, :id, :label, { include_blank: true },
+              id: "asset_sector_id",
+              class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+      </div>
+      <div class="md:col-span-2">
+        <%= f.label :speciality_id, class: "block text-sm font-medium text-slate-900" %>
+        <%= f.collection_select :speciality_id, @specialities, :id, :label, { include_blank: true },
+              id: "asset_speciality_id",
+              class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm",
+              "data-all-specialities": @specialities.map { |s| { id: s.id, label: s.label, sector_id: s.sector_id } }.to_json %>
+      </div>
+      <script>
+        (function() {
+          var sectorSel = document.getElementById("asset_sector_id");
+          var specSel   = document.getElementById("asset_speciality_id");
+          var allSpecs  = JSON.parse(specSel.dataset.allSpecialities);
+
+          function filterSpecialities() {
+            var sectorId = parseInt(sectorSel.value, 10);
+            var currentVal = parseInt(specSel.value, 10);
+
+            // rebuild options
+            while (specSel.options.length > 0) specSel.remove(0);
+            var blank = new Option("", "");
+            specSel.add(blank);
+
+            allSpecs.forEach(function(s) {
+              if (!sectorId || s.sector_id === sectorId) {
+                var opt = new Option(s.label, s.id);
+                if (s.id === currentVal) opt.selected = true;
+                specSel.add(opt);
+              }
+            });
+          }
+
+          sectorSel.addEventListener("change", filterSpecialities);
+          filterSpecialities(); // run on page load for edit form
+        })();
+      </script>
+    </div>
+  </fieldset>
+  <fieldset class="rounded-lg border border-slate-200 p-4">
+    <legend class="px-1 text-sm font-semibold text-slate-900">Mutual fund</legend>
+    <p class="mb-3 text-xs text-slate-600">Used when the asset type is a mutual fund (fund type, style, management, index if applicable).</p>
+    <div class="grid gap-4 md:grid-cols-2">
+      <div>
+        <%= f.label :fund_type_id, "Fund type", class: "block text-sm font-medium text-slate-900" %>
+        <%= f.collection_select :fund_type_id, @fund_types, :id, :label, { include_blank: true }, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+      </div>
+      <div>
+        <%= f.label :fund_style_id, "Fund style", class: "block text-sm font-medium text-slate-900" %>
+        <%= f.collection_select :fund_style_id, @fund_styles, :id, :label, { include_blank: true }, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+      </div>
+      <div>
+        <%= f.label :management_style_id, "Management style", class: "block text-sm font-medium text-slate-900" %>
+        <%= f.collection_select :management_style_id, @management_styles, :id, :label, { include_blank: true }, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+      </div>
+      <div>
+        <%= f.label :market_index_id, "Market index", class: "block text-sm font-medium text-slate-900" %>
+        <%= f.collection_select :market_index_id, @market_indices, :id, :code, { include_blank: true }, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+      </div>
+    </div>
+  </fieldset>
+  <fieldset class="rounded-lg border border-slate-200 p-4">
+    <legend class="px-1 text-sm font-semibold text-slate-900">Price provider</legend>
+    <p class="mb-3 text-xs text-slate-600">Optional override for price fetching. Hermes: key = fund name exactly as on the EFG Holding page (link defaults to their mutual funds page). Azimut: key = fund slug, e.g. az-frs-alshryaa-1 (link defaults to the Azimut API).</p>
+    <div class="grid gap-4 md:grid-cols-2">
+      <div>
+        <%= f.label :price_provider, "Provider", class: "block text-sm font-medium text-slate-900" %>
+        <%= f.select :price_provider, Asset::PRICE_PROVIDERS.map { |p| [p.humanize, p] }, { include_blank: "Default (Mubasher)" }, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+      </div>
+      <div>
+        <%= f.label :price_provider_key, "Provider key", class: "block text-sm font-medium text-slate-900" %>
+        <%= f.text_field :price_provider_key, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm", placeholder: "e.g. EFG Hermes Islamic Equity Fund" %>
+      </div>
+      <div class="md:col-span-2">
+        <%= f.label :price_provider_link, "Provider link", class: "block text-sm font-medium text-slate-900" %>
+        <%= f.url_field :price_provider_link, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm", placeholder: "Optional" %>
+      </div>
+    </div>
+  </fieldset>
+  <fieldset class="rounded-lg border border-slate-200 p-4">
+    <legend class="px-1 text-sm font-semibold text-slate-900">Wallet</legend>
+    <p class="mb-3 text-xs text-slate-600">Optional balance target for wallet-type assets (same currency as the asset).</p>
+    <div>
+      <%= f.label :static_target, "Static target", class: "block text-sm font-medium text-slate-900" %>
+      <%= f.number_field :static_target, step: :any, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm", placeholder: "Optional" %>
+    </div>
+  </fieldset>
+  <div>
+    <%= f.label :notes, class: "block text-sm font-medium text-slate-900" %>
+    <%= f.text_area :notes, rows: 3, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+  </div>
+  <div class="flex gap-2">
+    <%= f.submit class: "rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700" %>
+    <%= link_to "Cancel", assets_path, class: "rounded-md border border-slate-300 px-4 py-2 text-sm" %>
+  </div>
+<% end %>

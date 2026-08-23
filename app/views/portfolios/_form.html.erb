@@ -1,0 +1,47 @@
+<%= form_with model: portfolio, class: "max-w-lg space-y-4" do |f| %>
+  <% if portfolio.errors.any? %>
+    <div class="rounded-md bg-red-50 p-3 text-sm text-red-800"><%= portfolio.errors.full_messages.to_sentence %></div>
+  <% end %>
+  <div>
+    <%= f.label :name, class: "block text-sm font-medium text-slate-900" %>
+    <%= f.text_field :name, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+  </div>
+  <div>
+    <%= f.label :key, class: "block text-sm font-medium text-slate-900" %>
+    <%= f.text_field :key, placeholder: "e.g. my-portfolio (optional)", class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+    <p class="mt-1 text-xs text-slate-500">Lowercase letters, numbers, hyphens, and underscores only. Used as a URL alias (e.g. <code>/portfolios/my-portfolio</code>).</p>
+  </div>
+  <div>
+    <%= f.label :description, class: "block text-sm font-medium text-slate-900" %>
+    <%= f.text_area :description, rows: 3, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+  </div>
+  <div class="rounded-lg border border-slate-200 p-4">
+    <label class="flex items-start gap-2 text-sm text-slate-900">
+      <%= f.check_box :include_in_combined_percent, { class: "mt-1 rounded border-slate-300" }, "1", "0" %>
+      <span><span class="font-medium">Include in combined %</span> — count this portfolio’s value in the <strong>invested</strong> part of the denominator for “% combined” / share targets. Wallet cash is added separately to that denominator on the <%= link_to "portfolios list", portfolios_path, class: "text-blue-600 underline" %>.</span>
+    </label>
+  </div>
+  <fieldset class="rounded-lg border border-slate-200 p-4">
+    <legend class="px-1 text-sm font-semibold text-slate-900">Entire portfolio target</legend>
+    <p class="mb-3 text-xs text-slate-600">Optional goal for the whole book in reporting currency, or a target share of total value across all portfolios (percentage).</p>
+    <div class="grid gap-4 md:grid-cols-3">
+      <div>
+        <%= f.label :whole_target_type_id, "Target type", class: "block text-sm font-medium text-slate-900" %>
+        <%= f.collection_select :whole_target_type_id, TargetType.active.order(:position), :id, :label, { include_blank: "— none —" }, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+      </div>
+      <div>
+        <%= f.label :whole_target_percentage, "Target % (of included portfolios)", class: "block text-sm font-medium text-slate-900" %>
+        <%= f.number_field :whole_target_percentage, step: :any, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+      </div>
+      <div>
+        <%= f.label :whole_target_amount, "Target amount (reporting ccy)", class: "block text-sm font-medium text-slate-900" %>
+        <%= f.number_field :whole_target_amount, step: :any, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+      </div>
+    </div>
+  </fieldset>
+  <p class="text-sm text-slate-600">Portfolio totals use each asset’s own currency for prices and convert to the global reporting currency (see <%= link_to "Currencies", settings_currencies_path, class: "text-blue-600 underline" %> — the one marked base).</p>
+  <div class="flex gap-2">
+    <%= f.submit class: "rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700" %>
+    <%= link_to "Cancel", portfolios_path, class: "rounded-md border border-slate-300 px-4 py-2 text-sm" %>
+  </div>
+<% end %>

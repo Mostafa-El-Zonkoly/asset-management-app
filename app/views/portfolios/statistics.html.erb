@@ -1,0 +1,345 @@
+<% content_for :title, "All portfolios — statistics" %>
+<div class="flex flex-wrap items-end justify-between gap-4">
+  <div>
+    <h1 class="text-2xl font-semibold text-slate-900">All portfolios — statistics</h1>
+    <p class="mt-1 text-sm text-slate-600">Performance, allocation, and targets across every portfolio in one place. Share percentages use <strong>included portfolio investments + all wallet balances</strong> as the denominator; only portfolios with “Include in combined %” count toward the invested part. Edit targets on each <%= link_to "portfolio page", portfolios_path, class: "text-blue-600 hover:underline" %>.</p>
+  </div>
+  <%= link_to "Portfolios list", portfolios_path, class: "rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+</div>
+
+<% if @reporting_currency %>
+  <p class="mt-4 text-sm text-slate-600">Figures are in reporting currency <span class="font-medium"><%= @reporting_currency.code %></span> (<%= link_to "Currencies", settings_currencies_path, class: "text-blue-600 hover:underline" %>).</p>
+<% end %>
+
+<% if @missing_fx_codes&.any? %>
+  <div class="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+    Missing FX into reporting currency for: <strong><%= @missing_fx_codes.join(", ") %></strong>. Totals may be wrong until rates exist.
+  </div>
+<% end %>
+
+<% if @wallet_cash_reporting.to_d.nonzero? || @free_cash_metrics[:target_pct].present? %>
+  <div class="mt-8 rounded-xl border border-emerald-200 bg-emerald-50/40 p-4 shadow-sm">
+    <div class="flex flex-wrap items-start justify-between gap-2">
+      <h2 class="font-medium text-slate-900">Free cash (all wallets)</h2>
+      <%= link_to "Edit target", edit_settings_free_cash_target_path, class: "rounded-md border border-emerald-300 bg-white px-3 py-1.5 text-sm text-emerald-900 hover:bg-emerald-50" %>
+    </div>
+    <p class="mt-1 text-sm text-slate-600"><%= link_to "Wallets", wallets_path, class: "text-blue-600 hover:underline" %> · <%= link_to "Transactions", transactions_path, class: "text-blue-600 hover:underline" %>.</p>
+    <div class="mt-4">
+      <%= render "free_cash_target_readout", metrics: @free_cash_metrics, reporting_currency: @reporting_currency %>
+    </div>
+    <p class="mt-3 text-xs text-slate-600">Wealth denominator for portfolio share: invested (included) <%= number_with_precision(@invested_included_total, precision: 2) %> + wallets <%= number_with_precision(@wallet_cash_reporting, precision: 2) %> = <%= number_with_precision(@wealth_denominator_for_percent, precision: 2) %> <%= @reporting_currency&.code %>.</p>
+  </div>
+<% end %>
+
+<% if @portfolio_rows.blank? %>
+  <p class="mt-8 text-slate-600"><%= link_to "Create a portfolio", new_portfolio_path, class: "text-blue-600 hover:underline" %> to see per-portfolio statistics here.</p>
+<% else %>
+  <% if @overall_stats %>
+    <% targeted_rows = @portfolio_rows.select { |row| row[:portfolio].whole_target_percentage.present? } %>
+    <% targeted_total_value = targeted_rows.sum { |row| row[:stats][:total_value].to_d } %>
+    <% targeted_total_cost = targeted_rows.sum { |row| row[:stats][:total_cost].to_d } %>
+    <% targeted_unrealised_gain = targeted_rows.sum { |row| row[:stats][:unrealised_gain].to_d } %>
+    <% targeted_realised_gain = targeted_rows.sum { |row| row[:stats][:realised_gain].to_d } %>
+    <% targeted_total_gain = targeted_unrealised_gain + targeted_realised_gain %>
+    <% targeted_unrealised_pct =
+         if targeted_total_cost.nonzero?
+           (targeted_unrealised_gain / targeted_total_cost) * 100
+         elsif targeted_unrealised_gain.positive?
+           100
+         elsif targeted_unrealised_gain.negative?
+           -100
+         else
+           0
+         end %>
+    <% targeted_realised_pct =
+         if targeted_total_cost.nonzero?
+           (targeted_realised_gain / targeted_total_cost) * 100
+         elsif targeted_realised_gain.positive?
+           100
+         elsif targeted_realised_gain.negative?
+           -100
+         else
+           0
+         end %>
+    <% targeted_overall_gain_pct =
+         if targeted_total_cost.nonzero?
+           (targeted_total_gain / targeted_total_cost) * 100
+         elsif targeted_total_gain.positive?
+           100
+         elsif targeted_total_gain.negative?
+           -100
+         else
+           0
+         end %>
+    <% overall_gain_pct_with_emergency =
+         if @overall_stats[:total_cost].to_d.nonzero?
+           (@overall_stats[:total_gain].to_d / @overall_stats[:total_cost].to_d) * 100
+         elsif @overall_stats[:total_gain].to_d.positive?
+           100
+         elsif @overall_stats[:total_gain].to_d.negative?
+           -100
+         else
+           0
+         end %>
+    <div class="mt-8 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <h2 class="font-medium text-slate-900">Combined (all portfolios)</h2>
+      <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        <div>
+          <p class="text-xs uppercase tracking-wide text-slate-500">Total value</p>
+          <p class="mt-1 text-lg font-semibold"><%= number_with_precision(targeted_total_value, precision: 2) %></p>
+        </div>
+        <div>
+          <p class="text-xs uppercase tracking-wide text-slate-500">Total value with emergency</p>
+          <p class="mt-1 text-lg font-semibold"><%= number_with_precision(@overall_stats[:total_value], precision: 2) %></p>
+        </div>
+        <div>
+          <p class="text-xs uppercase tracking-wide text-slate-500">Total cost</p>
+          <p class="mt-1 text-lg font-semibold"><%= number_with_precision(targeted_total_cost, precision: 2) %></p>
+        </div>
+        <div>
+          <p class="text-xs uppercase tracking-wide text-slate-500">Unrealized gain</p>
+          <p class="mt-1 text-lg font-semibold">
+            <%= safe_join([
+              format_pnl_value(targeted_unrealised_gain, precision: 2),
+              " (",
+              format_pnl_percent(targeted_unrealised_pct, precision: 2),
+              ")"
+            ]) %>
+          </p>
+        </div>
+        <div>
+          <p class="text-xs uppercase tracking-wide text-slate-500">Realized gain</p>
+          <p class="mt-1 text-lg font-semibold">
+            <%= safe_join([
+              format_pnl_value(targeted_realised_gain, precision: 2),
+              " (",
+              format_pnl_percent(targeted_realised_pct, precision: 2),
+              ")"
+            ]) %>
+          </p>
+        </div>
+        <div>
+          <p class="text-xs uppercase tracking-wide text-slate-500">Overall gain</p>
+          <p class="mt-1 text-lg font-semibold">
+            <%= safe_join([
+              format_pnl_value(targeted_total_gain, precision: 2),
+              " (",
+              format_pnl_percent(targeted_overall_gain_pct, precision: 2),
+              ")"
+            ]) %>
+          </p>
+        </div>
+        <div>
+          <p class="text-xs uppercase tracking-wide text-slate-500">Overall gain % with emergency</p>
+          <p class="mt-1 text-lg font-semibold"><%= format_pnl_percent(overall_gain_pct_with_emergency, precision: 2) %></p>
+        </div>
+        <div>
+          <p class="text-xs uppercase tracking-wide text-slate-500">Overall XIRR (excl. emergency)</p>
+          <% if @overall_xirr&.annualized_percent %>
+            <p class="mt-1 text-lg font-semibold tabular-nums"><%= number_with_precision(@overall_xirr.annualized_percent, precision: 2) %>%</p>
+          <% else %>
+            <p class="mt-1 text-lg font-semibold text-slate-400">—</p>
+          <% end %>
+        </div>
+        <div>
+          <p class="text-xs uppercase tracking-wide text-slate-500">Overall XIRR (incl. emergency)</p>
+          <% if @overall_xirr_with_emergency&.annualized_percent %>
+            <p class="mt-1 text-lg font-semibold tabular-nums"><%= number_with_precision(@overall_xirr_with_emergency.annualized_percent, precision: 2) %>%</p>
+          <% else %>
+            <p class="mt-1 text-lg font-semibold text-slate-400">—</p>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
+  <div class="mt-10 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+    <div class="border-b border-slate-100 px-4 py-3 font-medium">At a glance</div>
+    <table data-controller="sortable-table" class="w-full min-w-[62rem] text-left text-sm">
+      <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+        <tr>
+          <th class="px-4 py-2">Portfolio</th>
+          <th class="px-4 py-2 text-right">Value</th>
+          <th class="px-4 py-2 text-right">Share %</th>
+          <th class="px-4 py-2 text-right">Total gain</th>
+          <th class="px-4 py-2 text-right">Total gain %</th>
+          <th class="px-4 py-2 text-right">XIRR</th>
+          <th class="px-4 py-2">Whole-portfolio target</th>
+          <th class="px-4 py-2 text-right">Δ target %</th>
+          <th class="px-4 py-2 text-right">Δ target (<%= @reporting_currency&.code || "value" %>)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @portfolio_rows.each do |row| %>
+          <% p = row[:portfolio] %>
+          <% s = row[:stats] %>
+          <% w = row[:whole] %>
+          <% share_pct = if p.include_in_combined_percent && @wealth_denominator_for_percent.positive?
+            ((s[:total_value].to_d / @wealth_denominator_for_percent) * 100)
+          end %>
+          <% total_gain_pct =
+               if s[:total_cost].to_d.nonzero?
+                 (s[:total_gain].to_d / s[:total_cost].to_d) * 100
+               elsif s[:total_gain].to_d.positive?
+                 100
+               elsif s[:total_gain].to_d.negative?
+                 -100
+               else
+                 0
+               end %>
+          <% xirr_res = @portfolio_xirr_by_id[p.id] %>
+          <tr class="border-t border-slate-100">
+            <td class="px-4 py-2 font-medium"><%= link_to p.name, statistics_portfolios_path(anchor: "portfolio-#{p.id}"), class: "text-blue-600 hover:underline" %></td>
+            <td class="px-4 py-2 text-right tabular-nums"><%= number_with_precision(s[:total_value], precision: 2) %></td>
+            <td class="px-4 py-2 text-right tabular-nums text-slate-700">
+              <% if share_pct.nil? %><span class="text-slate-400">—</span><% else %><%= number_with_precision(share_pct, precision: 2) %>%<% end %>
+            </td>
+            <td class="px-4 py-2 text-right tabular-nums"><%= format_pnl_value(s[:total_gain], precision: 2) %></td>
+            <td class="px-4 py-2 text-right tabular-nums"><%= format_pnl_percent(total_gain_pct, precision: 2) %></td>
+            <td class="px-4 py-2 text-right tabular-nums text-slate-700">
+              <% if xirr_res&.annualized_percent %>
+                <%= link_to xirr_portfolio_path(p), class: "text-blue-600 hover:underline tabular-nums" do %>
+                  <%= number_with_precision(xirr_res.annualized_percent, precision: 2) %>%
+                <% end %>
+              <% else %>
+                <span class="text-slate-400">—</span>
+              <% end %>
+            </td>
+            <td class="px-4 py-2 text-slate-700">
+              <% if w.nil? %>
+                <span class="text-slate-500">—</span>
+              <% elsif w[:mode] == :percentage %>
+                <%= number_with_precision(w[:actual_pct], precision: 1) %>% actual · <%= number_with_precision(w[:target_pct], precision: 1) %>% target
+              <% else %>
+                <% if w[:achieved_pct].present? %>
+                  <%= number_with_precision(w[:achieved_pct], precision: 1) %>% of <%= number_with_precision(w[:target_amount], precision: 0) %> <%= @reporting_currency&.code %>
+                <% else %>
+                  <%= number_with_precision(w[:actual_amount], precision: 0) %> / <%= number_with_precision(w[:target_amount], precision: 0) %> <%= @reporting_currency&.code %>
+                <% end %>
+              <% end %>
+            </td>
+            <td class="px-4 py-2 text-right tabular-nums">
+              <% if w.nil? %>
+                <span class="text-slate-400">—</span>
+              <% elsif w[:mode] == :percentage %>
+                <%= format_target_deviation_percent(w[:deviation_pct], precision: 2) %>
+              <% elsif w[:deviation_pct].present? %>
+                <%= format_target_deviation_percent(w[:deviation_pct], precision: 2) %>
+              <% else %>
+                <span class="text-slate-400">—</span>
+              <% end %>
+            </td>
+            <td class="px-4 py-2 text-right tabular-nums">
+              <% if w.nil? || w[:deviation_amount].nil? %>
+                <span class="text-slate-400">—</span>
+              <% else %>
+                <%= format_target_deviation_value(w[:deviation_amount], deviation_pct: w[:deviation_pct], precision: 2) %>
+              <% end %>
+            </td>
+          </tr>
+        <% end %>
+        <% if @wealth_denominator_for_percent.positive? %>
+          <% wshare = (@wallet_cash_reporting.to_d / @wealth_denominator_for_percent) * 100 %>
+          <% fc = @free_cash_metrics %>
+          <tr class="border-t border-slate-100 bg-emerald-50/50">
+            <td class="px-4 py-2 font-medium"><%= link_to "Wallets (free cash)", wallets_path, class: "text-blue-600 hover:underline" %></td>
+            <td class="px-4 py-2 text-right tabular-nums"><%= number_with_precision(@wallet_cash_reporting, precision: 2) %></td>
+            <td class="px-4 py-2 text-right tabular-nums text-slate-700"><%= number_with_precision(wshare, precision: 2) %>%</td>
+            <td class="px-4 py-2 text-right tabular-nums text-slate-400">—</td>
+            <td class="px-4 py-2 text-right tabular-nums text-slate-400">—</td>
+            <td class="px-4 py-2 text-right tabular-nums text-slate-400">—</td>
+            <td class="px-4 py-2 text-left text-xs text-slate-700">
+              <% if fc[:target_pct].present? %>
+                <%= number_with_precision(fc[:actual_pct], precision: 1) %>% actual · <%= number_with_precision(fc[:target_pct], precision: 1) %>% target
+              <% else %>
+                <span class="text-slate-500"><%= link_to "Set target", edit_settings_free_cash_target_path, class: "text-blue-600 hover:underline" %></span>
+              <% end %>
+            </td>
+            <td class="px-4 py-2 text-right tabular-nums text-xs">
+              <% if fc[:target_pct].present? && !fc[:deviation_pct].nil? %>
+                <%= format_target_deviation_percent(fc[:deviation_pct], precision: 2) %>
+              <% else %>
+                <span class="text-slate-400">—</span>
+              <% end %>
+            </td>
+            <td class="px-4 py-2 text-right tabular-nums text-xs">
+              <% if fc[:target_pct].present? && !fc[:deviation_amount].nil? %>
+                <%= format_target_deviation_value(fc[:deviation_amount], deviation_pct: fc[:deviation_pct], precision: 2) %>
+              <% else %>
+                <span class="text-slate-400">—</span>
+              <% end %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+    <p class="border-t border-slate-100 px-4 py-2 text-xs text-slate-500"><span class="font-medium text-slate-700">Share %</span> is value ÷ (included investments + all wallets). <span class="font-medium text-slate-700">Total gain %</span> is total gain ÷ total cost. <span class="font-medium text-slate-700">XIRR</span> is annualized money-weighted return from buys, sells, cash dividends, and current value (each figure links to that portfolio’s XIRR page); wallet deposits/withdrawals are not in the series. <span class="font-medium text-slate-700">Δ target %</span>: percentage-point gap for share-style targets (including <%= link_to "free cash % of wealth", edit_settings_free_cash_target_path, class: "text-blue-600 underline" %>); % vs target amount for NAV-only portfolio targets. <span class="font-medium text-slate-700">Δ target (value)</span>: reporting-currency gap vs target.</p>
+  </div>
+
+  <div class="mt-12 space-y-12">
+    <% @portfolio_rows.each do |row| %>
+      <% p = row[:portfolio] %>
+      <section class="scroll-mt-8 rounded-xl border border-slate-200 bg-white shadow-sm" id="portfolio-<%= p.id %>">
+        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
+          <h2 class="text-lg font-semibold text-slate-900"><%= link_to p.name, p, class: "text-blue-600 hover:underline" %></h2>
+          <span class="text-xs text-slate-500"><%= link_to "Open portfolio", p, class: "text-blue-600 hover:underline" %></span>
+        </div>
+        <div class="p-4">
+          <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <% row[:stats].each do |k, v| %>
+              <div class="rounded-lg border border-slate-100 bg-slate-50/80 p-3">
+                <p class="text-xs uppercase text-slate-500"><%= k.to_s.humanize %></p>
+                <p class="mt-1 font-semibold tabular-nums"><%= format_stat_card_value(k, v, precision: 2) %></p>
+              </div>
+            <% end %>
+            <% sec_xirr = @portfolio_xirr_by_id[p.id] %>
+            <div class="rounded-lg border border-slate-100 bg-slate-50/80 p-3">
+              <p class="text-xs uppercase text-slate-500">XIRR (annualized)</p>
+              <% if sec_xirr&.annualized_percent %>
+                <p class="mt-1 font-semibold tabular-nums"><%= link_to "#{number_with_precision(sec_xirr.annualized_percent, precision: 2)}%", xirr_portfolio_path(p), class: "text-blue-600 hover:underline" %></p>
+              <% else %>
+                <p class="mt-1 text-sm text-slate-500">—</p>
+              <% end %>
+              <p class="mt-1 text-xs text-slate-500"><%= link_to "Details", xirr_portfolio_path(p), class: "text-blue-600 underline" %></p>
+            </div>
+          </div>
+
+          <% if row[:whole] %>
+            <div class="mt-8">
+              <h3 class="text-sm font-semibold text-slate-900">Entire portfolio target</h3>
+              <%= render "whole_portfolio_target_readout", whole: row[:whole], reporting_currency: @reporting_currency %>
+            </div>
+          <% end %>
+
+          <div class="mt-8">
+            <h3 class="text-sm font-semibold text-slate-900">Allocation vs category targets</h3>
+            <div class="mt-2 overflow-x-auto">
+              <%= render "allocation_vs_targets_table", allocation: row[:allocation], reporting_currency: @reporting_currency %>
+            </div>
+          </div>
+
+          <div class="mt-8">
+            <h3 class="text-sm font-semibold text-slate-900">Category targets</h3>
+            <div class="mt-2 overflow-x-auto">
+              <%= render "category_targets_table", targets: row[:targets], allocation: row[:allocation], reporting_currency: @reporting_currency, portfolio: nil %>
+            </div>
+          </div>
+
+          <div class="mt-8">
+            <h3 class="text-sm font-semibold text-slate-900">Allocation vs mutual fund management style targets</h3>
+            <div class="mt-2 overflow-x-auto">
+              <%= render "allocation_vs_management_style_targets_table", allocation: row[:ms_allocation], reporting_currency: @reporting_currency %>
+            </div>
+          </div>
+
+          <div class="mt-8">
+            <h3 class="text-sm font-semibold text-slate-900">Mutual fund management style targets</h3>
+            <div class="mt-2 overflow-x-auto">
+              <%= render "management_style_targets_table", targets: row[:ms_targets], allocation: row[:ms_allocation], reporting_currency: @reporting_currency, portfolio: nil %>
+            </div>
+          </div>
+        </div>
+      </section>
+    <% end %>
+  </div>
+<% end %>

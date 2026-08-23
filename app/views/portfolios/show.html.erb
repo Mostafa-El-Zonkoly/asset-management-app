@@ -1,0 +1,196 @@
+<% content_for :title, @portfolio.name %>
+<div class="flex flex-wrap items-start justify-between gap-4">
+  <div>
+    <h1 class="text-2xl font-semibold"><%= @portfolio.name %></h1>
+    <p class="text-sm text-slate-600"><%= @portfolio.description %></p>
+  </div>
+  <div class="flex flex-wrap gap-2">
+    <%= link_to "XIRR", xirr_portfolio_path(@portfolio), class: "rounded-md bg-slate-800 px-3 py-2 text-sm font-medium text-white hover:bg-slate-900" %>
+    <%= link_to "Details", xirr_portfolio_path(@portfolio), class: "rounded-md border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50" %>
+    <%= link_to "Edit", edit_portfolio_path(@portfolio), class: "rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+    <%= button_to "Delete", portfolio_path(@portfolio), method: :delete, form: { data: { turbo_confirm: "Delete this portfolio?" } }, class: "rounded-md bg-red-600 px-3 py-2 text-sm text-white" %>
+  </div>
+</div>
+
+<% if @portfolio.errors.any? %>
+  <div class="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-800"><%= @portfolio.errors.full_messages.to_sentence %></div>
+<% end %>
+
+<% if @reporting_currency %>
+  <p class="text-sm text-slate-600">Totals and holding values are converted to the reporting currency <span class="font-medium"><%= @reporting_currency.code %></span> (set under Settings → Currencies).</p>
+<% end %>
+<% unless @portfolio.include_in_combined_percent %>
+  <p class="mt-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">This portfolio is <span class="font-medium">not included</span> in the combined % total (portfolios list and percentage whole-portfolio targets). You can change this under <%= link_to "Edit", edit_portfolio_path(@portfolio), class: "text-blue-600 hover:underline" %>.</p>
+<% end %>
+
+<div class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+  <% @stats.each do |k, v| %>
+    <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <p class="text-xs uppercase text-slate-500"><%= k.to_s.humanize %></p>
+      <p class="mt-1 text-lg font-semibold"><%= format_stat_card_value(k, v, precision: 2) %></p>
+    </div>
+  <% end %>
+  <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <p class="text-xs uppercase tracking-wide text-slate-500">XIRR (annualized)</p>
+    <% if @portfolio_xirr&.annualized_percent %>
+      <p class="mt-1 text-lg font-semibold tabular-nums"><%= link_to "#{number_with_precision(@portfolio_xirr.annualized_percent, precision: 2)}%", xirr_portfolio_path(@portfolio), class: "text-blue-600 hover:underline" %></p>
+    <% else %>
+      <p class="mt-1 text-sm text-slate-500">—</p>
+    <% end %>
+    <p class="mt-2 text-xs text-slate-500">Buys, sells, dividends + NAV.</p>
+    <p class="mt-1 text-xs"><%= link_to "Full breakdown →", xirr_portfolio_path(@portfolio), class: "font-medium text-blue-600 hover:underline" %></p>
+  </div>
+</div>
+
+<div class="mt-8 rounded-xl border border-slate-200 bg-white shadow-sm">
+  <div class="border-b border-slate-100 px-4 py-3 font-medium">Allocation vs category targets</div>
+  <div class="overflow-x-auto p-4">
+    <%= render "allocation_vs_targets_table", allocation: @allocation, reporting_currency: @reporting_currency %>
+  </div>
+</div>
+
+<div class="mt-8 rounded-xl border border-slate-200 bg-white shadow-sm">
+  <div class="border-b border-slate-100 px-4 py-3 font-medium">Allocation vs mutual fund management style targets</div>
+  <div class="overflow-x-auto p-4">
+    <%= render "allocation_vs_management_style_targets_table", allocation: @ms_allocation, reporting_currency: @reporting_currency %>
+  </div>
+</div>
+
+<div class="mt-8 grid gap-6 lg:grid-cols-2">
+  <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm" data-controller="line-chart" data-line-chart-url-value="<%= api_portfolio_performance_path(@portfolio.id, range: '1m') %>">
+    <h2 class="font-medium">Performance</h2>
+    <div class="mt-2 flex flex-wrap gap-2 text-xs">
+      <% %w[1w 1m ytd 1y].each do |r| %>
+        <button
+          type="button"
+          class="rounded px-2 py-1 bg-slate-100 text-slate-700 hover:bg-slate-200"
+          data-line-chart-target="rangeButton"
+          data-action="line-chart#setRange"
+          data-range="<%= r %>"
+          aria-pressed="false"
+        ><%= r.upcase %></button>
+      <% end %>
+    </div>
+    <div class="mt-3 min-h-[2.75rem]" data-line-chart-target="summary"></div>
+    <canvas class="mt-4 max-h-64" data-line-chart-target="canvas"></canvas>
+  </div>
+  <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm" data-controller="donut-chart" data-donut-chart-url-value="<%= api_portfolio_allocation_path(@portfolio.id) %>">
+    <h2 class="font-medium">Allocation</h2>
+    <canvas class="mt-4 max-h-64" data-donut-chart-target="canvas"></canvas>
+  </div>
+</div>
+
+<div class="mt-8 rounded-xl border border-slate-200 bg-white p-4 shadow-sm" data-controller="donut-chart" data-donut-chart-url-value="<%= api_portfolio_sector_breakdown_path(@portfolio.id) %>">
+  <h2 class="font-medium">Sector breakdown (stocks)</h2>
+  <canvas class="mt-4 max-h-48" data-donut-chart-target="canvas"></canvas>
+</div>
+
+<div class="mt-8 rounded-xl border border-slate-200 bg-white shadow-sm">
+  <div class="border-b border-slate-100 px-4 py-3 font-medium">Targets</div>
+  <div class="p-4">
+    <h3 class="text-sm font-semibold text-slate-900">Entire portfolio</h3>
+    <p class="mt-1 text-xs text-slate-600">Percentage = this portfolio’s share of <strong>included portfolio investments + all wallet balances</strong> (reporting currency). Only portfolios with “Include in combined %” count toward the invested total. Amount = target total portfolio value in <%= @reporting_currency&.code || "base" %>.</p>
+    <%= render "whole_portfolio_target_readout", whole: @whole_portfolio_target, reporting_currency: @reporting_currency %>
+    <%= form_with model: @portfolio, url: portfolio_path(@portfolio), method: :patch, class: "mt-4 grid gap-3 md:grid-cols-4" do |f| %>
+      <%= hidden_field_tag :portfolio_form_context, "show" %>
+      <%= f.collection_select :whole_target_type_id, TargetType.active.order(:position), :id, :label, { include_blank: "— no whole-portfolio target —" }, class: "rounded-md border border-slate-300 px-2 py-2 text-sm" %>
+      <%= f.number_field :whole_target_percentage, step: :any, placeholder: "% of all portfolios", class: "rounded-md border border-slate-300 px-2 py-2 text-sm" %>
+      <%= f.number_field :whole_target_amount, step: :any, placeholder: "Amount (#{@reporting_currency&.code || 'ccy'})", class: "rounded-md border border-slate-300 px-2 py-2 text-sm" %>
+      <%= f.submit "Save whole-portfolio target", class: "rounded-md bg-slate-800 px-3 py-2 text-sm text-white" %>
+    <% end %>
+
+    <h3 class="mt-8 text-sm font-semibold text-slate-900">By category</h3>
+    <%= form_with model: [@portfolio, PortfolioTarget.new], class: "mb-6 mt-3 grid gap-3 md:grid-cols-5" do |f| %>
+      <%= f.collection_select :category_id, Category.order(:name), :id, :name, { prompt: "Category" }, class: "rounded-md border border-slate-300 px-2 py-2 text-sm" %>
+      <%= f.collection_select :target_type_id, TargetType.active.order(:position), :id, :label, { prompt: "Type" }, class: "rounded-md border border-slate-300 px-2 py-2 text-sm" %>
+      <%= f.number_field :target_percentage, step: :any, placeholder: "%", class: "rounded-md border border-slate-300 px-2 py-2 text-sm" %>
+      <%= f.number_field :target_amount, step: :any, placeholder: "Amount", class: "rounded-md border border-slate-300 px-2 py-2 text-sm" %>
+      <%= f.submit "Add target", class: "rounded-md bg-slate-800 px-3 py-2 text-sm text-white" %>
+    <% end %>
+    <%= render "category_targets_table", targets: @targets, allocation: @allocation, reporting_currency: @reporting_currency, portfolio: @portfolio %>
+
+    <h3 class="mt-8 text-sm font-semibold text-slate-900">By mutual fund management style</h3>
+    <p class="mt-1 text-xs text-slate-600">Targets apply to mutual fund holdings only (passive vs active). Mix % is each style’s share of total non-wallet portfolio value.</p>
+    <%= form_with model: [@portfolio, PortfolioManagementStyleTarget.new], class: "mb-6 mt-3 grid gap-3 md:grid-cols-5" do |f| %>
+      <%= f.collection_select :management_style_id, ManagementStyle.active.order(:position), :id, :label, { prompt: "Style" }, class: "rounded-md border border-slate-300 px-2 py-2 text-sm" %>
+      <%= f.collection_select :target_type_id, TargetType.active.order(:position), :id, :label, { prompt: "Type" }, class: "rounded-md border border-slate-300 px-2 py-2 text-sm" %>
+      <%= f.number_field :target_percentage, step: :any, placeholder: "%", class: "rounded-md border border-slate-300 px-2 py-2 text-sm" %>
+      <%= f.number_field :target_amount, step: :any, placeholder: "Amount", class: "rounded-md border border-slate-300 px-2 py-2 text-sm" %>
+      <%= f.submit "Add target", class: "rounded-md bg-slate-800 px-3 py-2 text-sm text-white" %>
+    <% end %>
+    <%= render "management_style_targets_table", targets: @ms_targets, allocation: @ms_allocation, reporting_currency: @reporting_currency, portfolio: @portfolio %>
+  </div>
+</div>
+
+<div class="mt-8 rounded-xl border border-slate-200 bg-white shadow-sm">
+  <div class="border-b border-slate-100 px-4 py-3 font-medium">
+    Holdings
+    <span class="text-xs font-normal text-slate-500">
+      Average price and current price are in each asset’s trading currency.
+      Purchase value, current value, and all gain amounts are in
+      <span class="font-medium"><%= @reporting_currency&.code || "reporting" %></span>;
+      gain % figures are vs historical book cost at purchase-time FX rates.
+      FX gain shows how much of the unrealised gain is from exchange rate movement alone.
+      Realised includes recognised gains on sells and cash dividends.
+      Zero-quantity rows omitted.
+    </span>
+  </div>
+  <table data-controller="sortable-table" class="w-full min-w-[64rem] text-left text-sm">
+    <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+      <tr>
+        <th class="px-4 py-2">Asset</th>
+        <th class="text-right">Quantity</th>
+        <th class="text-right">Average price</th>
+        <th class="text-right">Purchase value</th>
+        <th class="text-right">Current price</th>
+        <th class="text-right">Current value</th>
+        <th class="text-right">FX gain</th>
+        <th class="text-right">Price gain</th>
+        <th class="text-right">Unrealised</th>
+        <th class="text-right">Realised</th>
+        <th class="text-right">Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @holdings.group_by { |h| h.asset.category.name }.each do |cat, rows| %>
+        <tr><td colspan="11" class="bg-slate-100 px-4 py-1 text-xs font-semibold text-slate-600"><%= cat %></td></tr>
+        <% rows.each do |h| %>
+          <% r = HoldingsCalculatorService.for_holding(h) %>
+          <% ccy = h.asset.currency.code %>
+          <% is_foreign = h.asset.currency_id != @reporting_currency&.id %>
+          <tr class="border-t border-slate-100">
+            <td class="px-4 py-2"><%= link_to h.asset.code, h.asset, class: "text-blue-600 hover:underline" %></td>
+            <td class="text-right tabular-nums" data-sort-value="<%= h.quantity %>"><%= number_with_precision(h.quantity, precision: 4) %></td>
+            <td class="text-right tabular-nums" data-sort-value="<%= h.average_buy_price&.to_d || 0 %>">
+              <%= h.average_buy_price ? "#{number_with_precision(h.average_buy_price, precision: 4)} #{ccy}" : "—" %>
+            </td>
+            <td class="text-right tabular-nums" data-sort-value="<%= r.cost_basis %>"><%= number_with_precision(r.cost_basis, precision: 2) %></td>
+            <td class="text-right tabular-nums" data-sort-value="<%= r.current_price&.to_d || 0 %>">
+              <%= r.current_price ? "#{number_with_precision(r.current_price, precision: 4)} #{ccy}" : "—" %>
+            </td>
+            <td class="text-right tabular-nums" data-sort-value="<%= r.current_value %>"><%= number_with_precision(r.current_value, precision: 2) %></td>
+            <td class="text-right tabular-nums" data-sort-value="<%= r.fx_gain_pct %>">
+              <% if is_foreign %>
+                <%= format_pnl_value_and_percent(r.fx_gain, r.fx_gain_pct) %>
+              <% else %>
+                <span class="text-slate-400">—</span>
+              <% end %>
+            </td>
+            <td class="text-right tabular-nums" data-sort-value="<%= r.price_gain_pct %>">
+              <%= format_pnl_value_and_percent(r.price_gain, r.price_gain_pct) %>
+            </td>
+            <td class="text-right tabular-nums" data-sort-value="<%= r.unrealised_gain_pct %>">
+              <%= format_pnl_value_and_percent(r.unrealised_gain, r.unrealised_gain_pct) %>
+            </td>
+            <td class="text-right tabular-nums" data-sort-value="<%= r.realised_gain_pct %>">
+              <%= format_pnl_value_and_percent(r.realised_gain, r.realised_gain_pct) %>
+            </td>
+            <td class="text-right tabular-nums" data-sort-value="<%= r.total_gain_pct %>">
+              <%= format_pnl_value_and_percent(r.total_gain, r.total_gain_pct) %>
+            </td>
+          </tr>
+        <% end %>
+      <% end %>
+    </tbody>
+  </table>
+</div>

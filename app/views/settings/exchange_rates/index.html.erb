@@ -1,0 +1,53 @@
+<% content_for :title, "Exchange rates" %>
+<h1 class="text-2xl font-semibold">Exchange rates</h1>
+<p class="mt-2 max-w-2xl text-sm text-slate-600">Enter how many units of <strong>base</strong> currency equal one unit of <strong>currency</strong> (e.g. currency USD, base EGP, rate 31 → 1 USD = 31 EGP). Portfolio totals convert each asset’s local value into the <%= link_to "reporting (base) currency", settings_currencies_path, class: "text-blue-600 underline" %> using the latest rate per pair.</p>
+
+<%= turbo_stream_from "rates_#{current_user.id}" %>
+
+<div class="mt-4 flex flex-wrap items-center gap-4">
+  <%= button_to "Fetch rates", fetch_settings_exchange_rates_path(format: :turbo_stream), method: :post, class: "rounded-md bg-slate-800 px-4 py-2 text-sm text-white" %>
+  <div id="exchange_rate_fetch_status"><%= render "fetch_status", message: "Ready." %></div>
+</div>
+
+<div class="mt-8 max-w-lg rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+  <h2 class="font-medium">Add rate</h2>
+  <%= form_with model: @rate, url: settings_exchange_rates_path, class: "mt-4 space-y-3" do |f| %>
+    <div>
+      <%= f.label :currency_id, "Currency", class: "block text-sm font-medium text-slate-900" %>
+      <%= f.collection_select :currency_id, @currencies, :id, :code, {}, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+    </div>
+    <div>
+      <%= f.label :base_currency_id, "Base (reporting)", class: "block text-sm font-medium text-slate-900" %>
+      <%= f.collection_select :base_currency_id, @currencies, :id, :code, {}, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+    </div>
+    <div>
+      <%= f.label :rate, class: "block text-sm font-medium text-slate-900" %>
+      <%= f.number_field :rate, step: :any, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm", placeholder: "Rate" %>
+    </div>
+    <div>
+      <%= f.label :date, class: "block text-sm font-medium text-slate-900" %>
+      <%= f.date_field :date, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+    </div>
+    <div>
+      <%= f.label :price_source_id, "Source", class: "block text-sm font-medium text-slate-900" %>
+      <%= f.collection_select :price_source_id, @price_sources, :id, :label, {}, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+    </div>
+    <%= f.submit "Save", class: "rounded-md bg-blue-600 px-4 py-2 text-sm text-white" %>
+  <% end %>
+</div>
+
+<div class="mt-8 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+  <table data-controller="sortable-table" class="w-full text-left text-sm">
+    <thead class="bg-slate-50 text-xs uppercase text-slate-500"><tr><th class="px-4 py-2">Date</th><th>Pair</th><th>Rate</th><th>Source</th></tr></thead>
+    <tbody>
+      <% @rates.each do |r| %>
+        <tr class="border-t border-slate-100">
+          <td class="px-4 py-2"><%= r.date %></td>
+          <td><%= r.currency.code %> / <%= r.base_currency.code %></td>
+          <td><%= number_with_precision(r.rate, precision: 8) %></td>
+          <td><%= r.price_source.label %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>

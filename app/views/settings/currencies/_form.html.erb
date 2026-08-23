@@ -1,0 +1,19 @@
+<%= form_with model: [:settings, currency], class: "max-w-md space-y-4" do |f| %>
+  <% if currency.errors.any? %>
+    <div class="rounded-md bg-red-50 p-3 text-sm text-red-800"><%= currency.errors.full_messages.to_sentence %></div>
+  <% end %>
+  <div>
+    <%= f.label :code, class: "block text-sm font-medium text-slate-900" %>
+    <%= f.text_field :code, placeholder: "Code", class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+  </div>
+  <div>
+    <%= f.label :name, class: "block text-sm font-medium text-slate-900" %>
+    <%= f.text_field :name, placeholder: "Name", class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+  </div>
+  <div>
+    <%= f.label :symbol, class: "block text-sm font-medium text-slate-900" %>
+    <%= f.text_field :symbol, placeholder: "Symbol", class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+  </div>
+  <label class="flex items-center gap-2 text-sm font-medium text-slate-900"><%= f.check_box :is_base %> Base currency</label>
+  <%= f.submit class: "rounded-md bg-blue-600 px-4 py-2 text-sm text-white" %>
+<% end %>

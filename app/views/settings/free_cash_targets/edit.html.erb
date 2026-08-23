@@ -1,0 +1,15 @@
+<% content_for :title, "Free cash target" %>
+<h1 class="mb-2 text-2xl font-semibold">Free cash target</h1>
+<p class="mb-6 max-w-xl text-sm text-slate-600">Set what share of your <strong>total wealth</strong> should sit in wallets as free cash. Wealth means <strong>included portfolio investments + all wallet balances</strong> (reporting currency, <%= Currency.base.pick(:code) || "base" %>), the same denominator as “% combined” on the <%= link_to "portfolios list", portfolios_path, class: "text-blue-600 hover:underline" %>. Tracked on <%= link_to "portfolio statistics", statistics_portfolios_path, class: "text-blue-600 hover:underline" %>.</p>
+
+<%= form_with model: @free_cash_target, url: settings_free_cash_target_path, method: :patch, class: "max-w-md space-y-4" do |f| %>
+  <% if @free_cash_target.errors.any? %>
+    <div class="rounded-md bg-red-50 p-3 text-sm text-red-800"><%= @free_cash_target.errors.full_messages.to_sentence %></div>
+  <% end %>
+  <div>
+    <%= f.label :target_percentage, "Target % of wealth (0–100)", class: "block text-sm font-medium text-slate-900" %>
+    <%= f.number_field :target_percentage, step: :any, min: 0, max: 100, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm", placeholder: "Leave blank for no target" %>
+  </div>
+  <%= f.submit "Save", class: "rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700" %>
+  <%= link_to "Cancel", settings_currencies_path, class: "ml-2 text-sm text-slate-600 hover:text-slate-900" %>
+<% end %>

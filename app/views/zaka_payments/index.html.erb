@@ -1,0 +1,46 @@
+<% content_for :title, "Zakaa payments" %>
+<div class="flex flex-wrap items-center justify-between gap-4">
+  <div>
+    <h1 class="text-2xl font-semibold text-slate-900">Zakaa payments</h1>
+    <p class="mt-1 text-sm text-slate-600">
+      Manual log of Zakaa paid. See <%= link_to "Zakaa statistics", zakaa_statistics_portfolios_path, class: "text-blue-600 hover:underline" %> for eligibility and suggested due.
+    </p>
+  </div>
+  <%= link_to "Record payment", new_zaka_payment_path, class: "rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700" %>
+</div>
+
+<% if @payments.empty? %>
+  <p class="mt-8 text-slate-600">No Zakaa payments recorded yet.</p>
+<% else %>
+  <div class="mt-6 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+    <table data-controller="sortable-table" class="w-full min-w-[32rem] text-left text-sm">
+      <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+        <tr>
+          <th class="px-4 py-3">Paid on</th>
+          <th class="px-4 py-3 text-right">Amount</th>
+          <th class="px-4 py-3">Currency</th>
+          <th class="px-4 py-3">Notes</th>
+          <th class="px-4 py-3"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @payments.each do |p| %>
+          <tr class="border-t border-slate-100">
+            <td class="px-4 py-3 font-medium"><%= p.paid_on %></td>
+            <td class="px-4 py-3 text-right tabular-nums"><%= number_with_precision(p.amount, precision: 2) %></td>
+            <td class="px-4 py-3"><%= p.currency.code %></td>
+            <td class="px-4 py-3 text-slate-600"><%= p.notes.presence || "—" %></td>
+            <td class="px-4 py-3 text-right whitespace-nowrap">
+              <%= link_to "Edit", edit_zaka_payment_path(p), class: "text-blue-600 hover:underline" %>
+              <%= button_to "Delete", p, method: :delete, form: { data: { turbo_confirm: "Remove this payment?" } }, class: "ml-2 inline text-red-600 hover:underline text-sm" %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+<% end %>
+
+<p class="mt-6">
+  <%= link_to "← Zakaa statistics", zakaa_statistics_portfolios_path, class: "text-sm text-blue-600 hover:underline" %>
+</p>

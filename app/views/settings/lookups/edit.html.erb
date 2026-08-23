@@ -1,0 +1,26 @@
+<h1 class="mb-4 text-xl font-semibold">Edit</h1>
+<%= form_with model: @record, url: settings_update_lookup_row_path(params[:table], @record), method: :patch, class: "max-w-md space-y-4" do |f| %>
+  <% if @record.errors.any? %>
+    <div class="rounded-md bg-red-50 p-3 text-sm text-red-800"><%= @record.errors.full_messages.to_sentence %></div>
+  <% end %>
+  <% if @model == Speciality %>
+    <div>
+      <%= f.label :sector_id, "Sector", class: "block text-sm font-medium text-slate-900" %>
+      <%= f.collection_select :sector_id, @sectors, :id, :label, {}, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+    </div>
+  <% end %>
+  <div>
+    <%= f.label :key, class: "block text-sm font-medium text-slate-900" %>
+    <%= f.text_field :key, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+  </div>
+  <div>
+    <%= f.label :label, "Display label", class: "block text-sm font-medium text-slate-900" %>
+    <%= f.text_field :label, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+  </div>
+  <div>
+    <%= f.label :position, class: "block text-sm font-medium text-slate-900" %>
+    <%= f.number_field :position, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+  </div>
+  <label class="flex gap-2 text-sm font-medium text-slate-900"><%= f.check_box :active %> Active</label>
+  <%= f.submit class: "rounded-md bg-blue-600 px-4 py-2 text-sm text-white" %>
+<% end %>

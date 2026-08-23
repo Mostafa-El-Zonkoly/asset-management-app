@@ -1,0 +1,54 @@
+<%# locals: (targets:, allocation:, reporting_currency:, portfolio: nil) %>
+<% targets = Array(targets).sort_by { |x| x.management_style.label } %>
+<% show_remove = portfolio.present? %>
+<% if targets.blank? %>
+  <p class="text-sm text-slate-600">No mutual fund management style targets.</p>
+<% else %>
+  <table data-controller="sortable-table" class="w-full min-w-[44rem] text-left text-sm">
+    <thead class="text-xs uppercase text-slate-500">
+      <tr>
+        <th class="py-2">Style</th>
+        <th>Type</th>
+        <th>Target %</th>
+        <th>Target amt</th>
+        <th>Actual<% if reporting_currency %> (<%= reporting_currency.code %>)<% end %></th>
+        <th>% of target</th>
+        <th>Mix %</th>
+        <th>Deviation</th>
+        <% if show_remove %><th></th><% end %>
+      </tr>
+    </thead>
+    <tbody>
+      <% targets.each do |t| %>
+        <% row = allocation.find { |a| a[:management_style_id] == t.management_style_id } %>
+        <tr class="border-t border-slate-100">
+          <td class="py-2"><%= t.management_style.label %></td>
+          <td><%= t.target_type.label %></td>
+          <td class="tabular-nums"><%= t.target_percentage.present? ? "#{number_with_precision(t.target_percentage, precision: 2)}%" : "—" %></td>
+          <td class="tabular-nums"><%= t.target_amount.present? ? number_with_precision(t.target_amount, precision: 2) : "—" %></td>
+          <td class="tabular-nums"><%= row ? number_with_precision(row[:value], precision: 2) : "—" %></td>
+          <td class="tabular-nums font-medium text-slate-900">
+            <% if row && row[:static_achieved_pct].present? %>
+              <%= number_with_precision(row[:static_achieved_pct], precision: 1) %>%
+            <% else %>
+              —
+            <% end %>
+          </td>
+          <td class="tabular-nums text-slate-600"><%= row ? "#{number_with_precision(row[:actual_pct], precision: 2)}%" : "—" %></td>
+          <td class="tabular-nums">
+            <% if row && row[:deviation_pct].present? %>
+              <%= format_target_deviation_percent(row[:deviation_pct], precision: 2) %>
+            <% elsif row && row[:deviation_amount].present? %>
+              <%= format_target_deviation_value(row[:deviation_amount], target_amount: row[:target_amount], precision: 2) %>
+            <% else %>
+              —
+            <% end %>
+          </td>
+          <% if show_remove %>
+            <td><%= button_to "Remove", portfolio_portfolio_management_style_target_path(portfolio, t), method: :delete, class: "text-red-600 text-xs" %></td>
+          <% end %>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+<% end %>

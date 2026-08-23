@@ -1,0 +1,63 @@
+<% content_for :title, "New transaction" %>
+<h1 class="mb-6 text-2xl font-semibold">New transaction</h1>
+
+<%= form_with model: @transaction, url: transactions_path, class: "max-w-xl space-y-4", data: { controller: "total-calculator" } do |f| %>
+  <%= hidden_field_tag :return_to, "asset" if @return_to_asset %>
+  <p class="text-sm text-slate-600">Portfolio is required for buy, sell, and dividends. Leave it blank for deposit, withdrawal, or transfer (wallets are global).</p>
+  <div>
+    <%= f.label :portfolio_id, class: "block text-sm font-medium text-slate-900" %>
+    <%= f.collection_select :portfolio_id, @portfolios, :id, :name, { include_blank: "— none (wallet-only) —" }, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+  </div>
+  <div>
+    <%= f.label :transaction_type_id, class: "block text-sm font-medium text-slate-900" %>
+    <%= f.collection_select :transaction_type_id, @transaction_types, :id, :label, {}, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+  </div>
+  <%= render "shared/searchable_asset_field", form: f, method: :asset_id, collection: @assets, label: "Primary asset" %>
+  <div>
+    <%= f.label :related_wallet_id, "Wallet (buy / sell / dividends / transfer source)", class: "block text-sm font-medium text-slate-900" %>
+    <%= f.collection_select :related_wallet_id, @wallets, :id, :code, { include_blank: true }, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+  </div>
+  <div>
+    <%= f.label :transfer_to_wallet_id, "Transfer destination wallet", class: "block text-sm font-medium text-slate-900" %>
+    <%= f.collection_select :transfer_to_wallet_id, @wallets, :id, :code, { include_blank: true }, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+  </div>
+  <div class="grid gap-4 md:grid-cols-2">
+    <div>
+      <%= f.label :quantity, class: "block text-sm font-medium text-slate-900" %>
+      <%= f.number_field :quantity, step: :any, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2", data: { "total-calculator-target": "quantity", action: "input->total-calculator#recalculate" } %>
+    </div>
+    <div>
+      <%= f.label :price_per_unit, class: "block text-sm font-medium text-slate-900" %>
+      <%= f.number_field :price_per_unit, step: :any, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2", data: { "total-calculator-target": "price", action: "input->total-calculator#recalculate" } %>
+    </div>
+  </div>
+  <div class="grid gap-4 md:grid-cols-2">
+    <div>
+      <%= f.label :total_amount, class: "block text-sm font-medium text-slate-900" %>
+      <%= f.number_field :total_amount, step: :any, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2", data: { "total-calculator-target": "total", action: "input->total-calculator#totalEdited" } %>
+      <p class="mt-1 text-xs text-slate-500">Auto-calculated as quantity × price. Edit to override.</p>
+    </div>
+    <div>
+      <%= f.label :currency_id, class: "block text-sm font-medium text-slate-900" %>
+      <%= f.collection_select :currency_id, @currencies, :id, :code, {}, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+    </div>
+  </div>
+  <div class="grid gap-4 md:grid-cols-2">
+    <div>
+      <%= f.label :date, class: "block text-sm font-medium text-slate-900" %>
+      <%= f.datetime_field :date, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+    </div>
+    <div>
+      <label class="block text-sm font-medium text-slate-900">
+        Exchange rate to <%= Currency.base.first&.code || "base" %>
+      </label>
+      <%= f.number_field :exchange_rate_at_transaction, step: :any, placeholder: "e.g. 50.5 (auto-filled if blank)", class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+      <p class="mt-1 text-xs text-slate-500">How many <strong><%= Currency.base.first&.code || "base" %></strong> per 1 unit of the transaction currency. Leave blank to auto-look up from exchange rate history.</p>
+    </div>
+  </div>
+  <div>
+    <%= f.label :notes, class: "block text-sm font-medium text-slate-900" %>
+    <%= f.text_area :notes, rows: 2, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+  </div>
+  <%= f.submit "Save transaction", class: "rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700" %>
+<% end %>

@@ -1,0 +1,22 @@
+<% content_for :title, "Wallets" %>
+<h1 class="text-2xl font-semibold">Wallets</h1>
+<p class="mt-2 text-sm text-slate-600">Balances are global (not tied to a portfolio) and come from the transaction ledger. Use <%= link_to "Transactions", new_transaction_path, class: "text-blue-600 underline" %> for deposits, withdrawals, and transfers. Buys and sells in a portfolio still move cash from these wallets.</p>
+
+<div class="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+  <% @wallet_assets.each do |w| %>
+    <% bal = WalletLedgerService.balance(w) %>
+    <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <p class="text-sm font-medium">
+        <%= link_to w, class: "text-slate-900 hover:text-blue-600 hover:underline" do %>
+          <%= w.name %> <span class="font-mono text-slate-500">(<%= w.code %>)</span>
+        <% end %>
+      </p>
+      <p class="mt-2 text-2xl font-semibold"><%= number_with_precision(bal, precision: 2) %> <%= w.currency.code %></p>
+      <p class="mt-2"><%= link_to "Add transaction", new_transaction_path(asset_id: w.id), class: "text-xs text-blue-600 hover:underline" %></p>
+      <% if w.static_target.present? %>
+        <% pct = w.static_target.to_d.nonzero? ? ((bal / w.static_target.to_d) * 100) : 0 %>
+        <p class="mt-1 text-xs text-slate-600">Target <%= number_with_precision(w.static_target, precision: 2) %> · <%= number_with_precision(pct, precision: 1) %>%</p>
+      <% end %>
+    </div>
+  <% end %>
+</div>

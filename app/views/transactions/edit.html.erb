@@ -1,0 +1,96 @@
+<% content_for :title, "Edit transaction" %>
+<% key = @transaction.transaction_type&.key %>
+<h1 class="mb-2 text-2xl font-semibold">Edit transaction</h1>
+<% if key == "transfer" %>
+  <p class="mb-6 max-w-xl text-sm text-slate-600">Only date and notes can be changed for transfer rows; amounts and wallets stay as posted.</p>
+<% else %>
+  <p class="mb-6 max-w-xl text-sm text-slate-600">Changes update this row and recalculate portfolio holdings and wallet cash so totals stay consistent.</p>
+<% end %>
+
+<dl class="mb-6 grid gap-2 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm md:grid-cols-2">
+  <dt class="font-medium text-slate-700">Type</dt>
+  <dd><%= @transaction.transaction_type.label %></dd>
+  <dt class="font-medium text-slate-700">Asset</dt>
+  <dd><%= link_to @transaction.asset.code, @transaction.asset, class: "text-blue-600 hover:underline" %></dd>
+</dl>
+
+<%= form_with model: @transaction, url: transaction_path(@transaction), method: :patch, class: "max-w-xl space-y-4", data: { controller: "total-calculator" } do |f| %>
+  <% if key == "transfer" %>
+    <div>
+      <%= f.label :date, class: "block text-sm font-medium text-slate-900" %>
+      <%= f.datetime_field :date, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+    </div>
+    <div>
+      <%= f.label :notes, class: "block text-sm font-medium text-slate-900" %>
+      <%= f.text_area :notes, rows: 3, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+    </div>
+  <% elsif key == "stock_dividend" %>
+    <%= f.hidden_field :total_amount %>
+    <%= f.hidden_field :price_per_unit %>
+    <div>
+      <%= f.label :portfolio_id, "Portfolio", class: "block text-sm font-medium text-slate-900" %>
+      <%= f.collection_select :portfolio_id, Portfolio.order(:name), :id, :name, {}, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+    </div>
+    <div>
+      <%= f.label :quantity, "Additional shares", class: "block text-sm font-medium text-slate-900" %>
+      <%= f.number_field :quantity, step: :any, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+    </div>
+    <div>
+      <%= f.label :currency_id, class: "block text-sm font-medium text-slate-900" %>
+      <%= f.collection_select :currency_id, @currencies, :id, :code, {}, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+    </div>
+    <div>
+      <%= f.label :date, class: "block text-sm font-medium text-slate-900" %>
+      <%= f.datetime_field :date, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+    </div>
+    <div>
+      <%= f.label :notes, class: "block text-sm font-medium text-slate-900" %>
+      <%= f.text_area :notes, rows: 3, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+    </div>
+  <% else %>
+    <% portfolio_types = PortfolioTransaction::PORTFOLIO_REASSIGNABLE_TYPE_KEYS %>
+    <% if portfolio_types.include?(key) %>
+      <div>
+        <%= f.label :portfolio_id, "Portfolio", class: "block text-sm font-medium text-slate-900" %>
+        <%= f.collection_select :portfolio_id, Portfolio.order(:name), :id, :name, {}, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+      </div>
+    <% end %>
+    <% if %w[buy sell cash_dividend].include?(key) %>
+      <div>
+        <%= f.label :related_wallet_id, "Cash wallet", class: "block text-sm font-medium text-slate-900" %>
+        <%= f.collection_select :related_wallet_id, @wallets, :id, :code, {}, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+      </div>
+    <% end %>
+    <div class="grid gap-4 md:grid-cols-2">
+      <div>
+        <%= f.label :quantity, class: "block text-sm font-medium text-slate-900" %>
+        <%= f.number_field :quantity, step: :any, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2", data: { "total-calculator-target": "quantity", action: "input->total-calculator#recalculate" } %>
+      </div>
+      <div>
+        <%= f.label :price_per_unit, class: "block text-sm font-medium text-slate-900" %>
+        <%= f.number_field :price_per_unit, step: :any, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2", data: { "total-calculator-target": "price", action: "input->total-calculator#recalculate" } %>
+      </div>
+    </div>
+    <div class="grid gap-4 md:grid-cols-2">
+      <div>
+        <%= f.label :total_amount, class: "block text-sm font-medium text-slate-900" %>
+        <%= f.number_field :total_amount, step: :any, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2", data: { "total-calculator-target": "total", action: "input->total-calculator#totalEdited" } %>
+        <p class="mt-1 text-xs text-slate-500">Auto-calculated as quantity × price. Edit to override.</p>
+      </div>
+      <div>
+        <%= f.label :currency_id, class: "block text-sm font-medium text-slate-900" %>
+        <%= f.collection_select :currency_id, @currencies, :id, :code, {}, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+      </div>
+    </div>
+    <div>
+      <%= f.label :date, class: "block text-sm font-medium text-slate-900" %>
+      <%= f.datetime_field :date, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+    </div>
+    <div>
+      <%= f.label :notes, class: "block text-sm font-medium text-slate-900" %>
+      <%= f.text_area :notes, rows: 3, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+    </div>
+  <% end %>
+  <%= f.submit "Save changes", class: "rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700" %>
+  <%= link_to "Cancel", transaction_path(@transaction), class: "ml-2 text-sm text-slate-600 hover:text-slate-900" %>
+<% end %>

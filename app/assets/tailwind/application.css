@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+@source "../../../app/views/**/*.erb";
+@source "../../../app/helpers/**/*.rb";
+@source "../../../app/javascript/**/*.js";
+
+/* Tailwind v4 preflight does not set label color; ensure labels stay visible on all backgrounds. */
+@layer base {
+  label {
+    color: var(--color-slate-900);
+  }
+}
+

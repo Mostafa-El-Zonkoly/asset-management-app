@@ -1,0 +1,46 @@
+# Render Blueprint for the Portfolio App (Rails 7.2 + PostgreSQL, Docker).
+# Spec: https://render.com/docs/blueprint-spec
+#
+# Provisions:
+#   - a Docker web service (Puma), and
+#   - a managed PostgreSQL database.
+#
+# There is NO Redis or Sidekiq worker. Background jobs run in-process using the
+# :async Active Job adapter (see config/environments/production.rb). The daily
+# cron jobs (price fetch, portfolio snapshot) do NOT run automatically in this
+# setup. See RENDER_DEPLOY.md for how to add a worker + Redis later.
+
+databases:
+  - name: portfolio-db
+    databaseName: portfolio_app_production
+    user: portfolio_app
+    plan: free              # Free Postgres expires ~30 days after creation; upgrade to keep it.
+    region: frankfurt       # Closest region to Egypt. Must match the web service region.
+
+services:
+  - type: web
+    name: portfolio-app
+    runtime: docker
+    plan: free              # Free web services sleep after ~15 min idle; upgrade to "starter" to stay warm.
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /up
+    autoDeploy: true
+    envVars:
+      - key: RAILS_ENV
+        value: production
+      - key: RAILS_SERVE_STATIC_FILES
+        value: "true"
+      - key: RAILS_LOG_TO_STDOUT
+        value: "true"
+      - key: RAILS_MAX_THREADS
+        value: "3"
+      # Generated once by Render and stored securely. Used to sign sessions/cookies.
+      - key: SECRET_KEY_BASE
+        generateValue: true
+      # Wired automatically from the database above.
+      - key: DATABASE_URL
+        fromDatabase:
+          name: portfolio-db
+          property: connectionString

@@ -1,0 +1,180 @@
+<% content_for :title, "XIRR · #{@portfolio.name}" %>
+<div class="space-y-6">
+  <div class="flex flex-wrap items-center justify-between gap-4">
+    <div>
+      <p class="text-sm text-slate-500"><%= link_to "Dashboard", root_path, class: "text-blue-600 hover:underline" %> · <%= link_to @portfolio.name, @portfolio, class: "text-blue-600 hover:underline" %></p>
+      <h1 class="text-2xl font-semibold text-slate-900">Extended IRR (XIRR)</h1>
+      <% if @reporting_currency %>
+        <p class="mt-1 text-sm text-slate-600">Flows and terminal value use reporting currency <span class="font-medium"><%= @reporting_currency.code %></span>.</p>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+    <% if @xirr_result.annualized_percent %>
+      <p class="text-xs uppercase tracking-wide text-slate-500">Annualized XIRR</p>
+      <p class="mt-2 text-3xl font-semibold tabular-nums text-slate-900"><%= number_with_precision(@xirr_result.annualized_percent, precision: 2) %>%</p>
+    <% else %>
+      <p class="text-sm font-medium text-slate-900">XIRR not available</p>
+      <p class="mt-2 text-sm text-slate-600">
+        <% case @xirr_result.reason %>
+        <% when :insufficient_flows %>
+          Need at least two cash-flow points (for example a buy and today’s portfolio value). Add portfolio transactions or wait until there is activity to measure.
+        <% when :same_sign %>
+          All amounts have the same sign after adding today’s value, so no rate solves the equation. Check that buys (outflows) and terminal value are present.
+        <% when :no_convergence %>
+          The numeric solver did not converge. Try again after more distinct cash flows or check for unusual amounts.
+        <% when :invalid_rate %>
+          The solver hit an invalid interest rate during iteration.
+        <% else %>
+          Unknown reason.
+        <% end %>
+      </p>
+    <% end %>
+    <p class="mt-6 text-xs text-slate-500">
+      The sections below tie this headline to portfolio gain components, each dated cash flow used in XIRR, and the NPV check at that rate.
+    </p>
+  </div>
+
+  <% stats = @xirr_breakdown.portfolio_stats %>
+  <section aria-labelledby="xirr-numbers-heading" class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+    <h2 id="xirr-numbers-heading" class="text-lg font-semibold text-slate-900">Portfolio numbers (<%= @reporting_currency&.code %>)</h2>
+    <p class="mt-3 text-sm text-slate-600">Totals from <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs">PortfolioStatsService#summary</code>—the same NAV that closes the IRR as the terminal row.</p>
+    <dl class="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+      <div class="rounded-lg border border-slate-100 bg-slate-50/80 p-3">
+        <dt class="font-medium text-slate-700">Market value today</dt>
+        <dd class="mt-1 tabular-nums font-semibold text-slate-900"><%= number_with_precision(stats[:total_value], precision: 2) %></dd>
+      </div>
+      <div class="rounded-lg border border-slate-100 bg-slate-50/80 p-3">
+        <dt class="font-medium text-slate-700">Cost basis</dt>
+        <dd class="mt-1 tabular-nums font-semibold text-slate-900"><%= number_with_precision(stats[:total_cost], precision: 2) %></dd>
+      </div>
+      <div class="rounded-lg border border-slate-100 bg-slate-50/80 p-3">
+        <dt class="font-medium text-slate-700">Unrealised gain</dt>
+        <dd class="mt-1"><%= format_pnl_value(stats[:unrealised_gain], precision: 2) %></dd>
+      </div>
+      <div class="rounded-lg border border-slate-100 bg-slate-50/80 p-3">
+        <dt class="font-medium text-slate-700">Realised gain</dt>
+        <dd class="mt-1"><%= format_pnl_value(stats[:realised_gain], precision: 2) %></dd>
+      </div>
+    </dl>
+    <div class="mt-4 rounded-lg border border-emerald-200 bg-emerald-50/70 p-4 text-sm leading-relaxed text-emerald-950">
+      <% u = stats[:unrealised_gain].to_d %>
+      <% rq = stats[:realised_gain].to_d %>
+      <% tg = stats[:total_gain].to_d %>
+      <% gain_sum_match = (tg - (u + rq)).abs <= 0.02 %>
+      <p><span class="font-medium">Accounting gain decomposition:</span> unrealised <%= format_pnl_value(u, precision: 2) %> + realised <%= format_pnl_value(rq, precision: 2) %> <%= gain_sum_match ? "=" : "≈" %> <span class="font-semibold"><%= format_pnl_value(tg, precision: 2) %></span> total gain<%= gain_sum_match ? "" : " (rounding vs components)" %>.</p>
+    </div>
+  </section>
+
+  <section class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+    <h2 class="text-lg font-semibold text-slate-900">Dated flows in the XIRR sum</h2>
+    <p class="mt-3 text-sm text-slate-600">
+      Buys (outflows): <span class="font-mono tabular-nums"><%= number_with_precision(@xirr_breakdown.transaction_outflows, precision: 2) %></span>
+      <%= @reporting_currency&.code.present? ? " #{@reporting_currency.code}" : "" %>
+      total cash committed from recorded buys.
+      Sells and cash dividends (inflows): <span class="font-mono tabular-nums"><%= number_with_precision(@xirr_breakdown.transaction_inflows, precision: 2) %></span>.
+      Terminal inflow dated <%= l @xirr_breakdown.terminal_date %>: <span class="font-medium tabular-nums"><%= number_with_precision(@xirr_breakdown.terminal_amount, precision: 2) %></span> (today’s NAV).
+    </p>
+    <% bd_lines = @xirr_breakdown.flow_lines %>
+    <% if bd_lines.blank? %>
+      <p class="mt-4 text-sm text-slate-600">No buy, sell, or cash-dividend rows are included yet—only other transaction types exist, or flows net to zero.</p>
+    <% else %>
+      <div class="mt-4 overflow-x-auto">
+        <table class="w-full min-w-[32rem] text-left text-sm">
+          <thead class="border-b border-slate-200 text-xs uppercase text-slate-500">
+            <tr><th class="pb-2 pr-3 font-medium">Date</th><th class="pb-2 pr-3 font-medium">Transaction</th><th class="pb-2 text-right font-medium">Signed <%= @reporting_currency&.code.present? ? "amount (#{@reporting_currency.code})" : "amount" %></th></tr>
+          </thead>
+          <tbody>
+            <% bd_lines.each do |ln| %>
+              <tr class="border-t border-slate-100">
+                <td class="py-2 pr-3 whitespace-nowrap text-slate-700"><%= l ln.date.to_date %></td>
+                <td class="py-2 pr-3 text-slate-800"><%= link_to ln.label, transaction_path(ln.transaction_id), class: "text-blue-600 hover:underline" %></td>
+                <td class="py-2 text-right tabular-nums <%= ln.amount.positive? ? 'text-emerald-800' : ln.amount.negative? ? 'text-red-700' : 'text-slate-700' %>"><%= number_with_precision(ln.amount, precision: 2) %></td>
+              </tr>
+            <% end %>
+            <tr class="border-t border-slate-200 bg-slate-50 font-medium">
+              <td class="py-2 pr-3 whitespace-nowrap"><%= l @xirr_breakdown.terminal_date %></td>
+              <td class="py-2 pr-3 text-slate-900">Terminal (mark-to-market portfolio value)</td>
+              <td class="py-2 text-right tabular-nums text-emerald-900"><%= number_with_precision(@xirr_breakdown.terminal_amount, precision: 2) %></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    <% end %>
+  </section>
+
+  <% pv = @xirr_breakdown.present_value_at_solved_rate %>
+  <% pv_ok = @xirr_result.annualized_percent && pv.is_a?(Float) && pv.finite? %>
+  <% r_dec = @xirr_result.annualized_percent ? BigDecimal(@xirr_result.annualized_percent.to_s) / 100 : nil %>
+  <section class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+    <h2 class="text-lg font-semibold text-slate-900">Equation with your numbers</h2>
+    <p class="mt-3 text-sm leading-relaxed text-slate-700">
+      Let each row above be <span class="font-mono text-xs">C<sub>i</sub></span> on date <span class="font-mono text-xs">t<sub>i</sub></span>,
+      earliest date giving <span class="font-mono text-xs">t<sub>0</sub></span>.
+      Years from that anchor: <span class="font-mono text-xs">y<sub>i</sub></span> = (date<sub>i</sub> − date<sub>0</sub>) ÷ 365.
+      <% if @xirr_result.annualized_percent %>
+        <% r_pct_q = number_with_precision(@xirr_result.annualized_percent, precision: 4) %>
+        The solved annual rate shown at the top is <span class="font-mono font-medium tabular-nums">r = <%= number_with_precision(r_dec, precision: 8) %> per year</span> (decimal, not percentage points),
+        i.e. <span class="font-mono font-medium tabular-nums"><%= r_pct_q %>%</span> per calendar year before compounding quirks.
+      <% end %>
+      The IRR condition is:
+    </p>
+    <div class="mt-3 rounded-lg border border-slate-100 bg-slate-50 p-4 font-mono text-sm text-slate-900 overflow-x-auto">
+      Σ<sub>i</sub> &nbsp; C<sub>i</sub> × (1 + r)<sup>−y<sub>i</sub></sup> <%= pv_ok ? "≈ #{number_with_precision(pv, precision: 8)} (≈ 0)" : "= 0" %>
+    </div>
+    <% if @xirr_result.annualized_percent && !pv_ok %>
+      <p class="mt-2 text-xs text-slate-500">NPV residual not shown (solver edge or numerical issue).</p>
+    <% elsif @xirr_result.annualized_percent.nil? %>
+      <p class="mt-3 text-sm text-slate-600">When XIRR is unavailable, expand past activity or reconcile signs so negatives (buys) and positives (sales, dividends, terminal NAV) both appear—the sum above only has meaning once a solving rate exists.</p>
+    <% end %>
+    <p class="mt-3 text-xs leading-relaxed text-slate-500">The gain identity (unrealised + realised ≈ total gain) is bookkeeping on marks and ledger; XIRR solves a different discounted-cash-flow identity involving the dated <span class="font-mono text-xs">C<sub>i</sub></span>.</p>
+  </section>
+
+  <section class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+    <h2 class="text-lg font-semibold text-slate-900">How this XIRR is calculated</h2>
+    <p class="mt-3 text-sm leading-relaxed text-slate-700">
+      <abbr title="Extended internal rate of return" class="no-underline">XIRR</abbr> is the annualized rate <span class="font-mono text-xs">r</span> that sets the net present value of every dated cash flow to zero. Here it follows the same sign convention as Microsoft Excel’s <span class="font-mono text-xs">XIRR</span>: amounts you pay to invest count as negatives, amounts you receive (sales, dividends, and ending wealth) count as positives. The solver is implemented with Newton’s method in <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs">XirrCalculator</code>.
+    </p>
+
+    <h3 class="mt-6 text-sm font-semibold text-slate-900">1. Cash flows from transactions</h3>
+    <p class="mt-2 text-sm leading-relaxed text-slate-700">
+      Buys / dividends still use posting <span class="font-medium"><code class="font-mono text-xs">total_amount</code></span> (converted into reporting currency). <span class="font-medium">Sells</span> use that amount when it already matches <code class="font-mono text-xs">quantity × price_per_unit</code> within a small tolerance (full proceeds); if the stored total equals exit cost basis but <code class="font-mono text-xs">total_amount + realised_gain</code> restores proceeds and matches quantity×sale price, that recovered figure is used for XIRR—the same proceeds Excel expects from the disposition.
+      Amounts are converted from the transaction currency into your <span class="font-medium">reporting (base) currency</span> using <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs">CurrencyConversionService</code>, matching other portfolio totals.
+    </p>
+    <ul class="mt-3 list-disc space-y-1 pl-5 text-sm text-slate-700">
+      <li><span class="font-medium">Buys</span> enter as <span class="tabular-nums text-red-700">negative</span> flows (cash you commit to acquire holdings).</li>
+      <li><span class="font-medium">Sells</span> and <span class="font-medium">cash dividends</span> enter as <span class="tabular-nums text-emerald-800">positive</span> flows (cash coming back into the measured story for this portfolio).</li>
+      <li>Other ledger types (<span class="text-slate-600">stock dividends, deposits, withdrawals, transfers, etc.</span>) are omitted from these flows unless they appear as buys/sells/dividends above. Stock dividends affect quantity and average cost elsewhere but do not move cash here; wallet-only deposit/withdrawal lines are global in this app, not attributed to this portfolio.</li>
+    </ul>
+
+    <h3 class="mt-6 text-sm font-semibold text-slate-900">2. Terminal value (“today mark”)</h3>
+    <p class="mt-2 text-sm leading-relaxed text-slate-700">
+      A final positive flow is added dated <span class="font-medium"><%= l Time.zone.today %></span>. Its amount is this portfolio’s <span class="font-medium">reporting-currency mark-to-market value</span> from <code class="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs">PortfolioStatsService#summary</code>—the sum across non-wallet holdings of each position’s <span class="font-medium">current value</span> (latest quotes via <code class="font-mono text-xs">HoldingsCalculatorService</code>), not cost basis.
+      That captures what you could notionally redeem at today’s valuations and closes the investment loop for the IRR equation.
+    </p>
+
+    <h3 class="mt-6 text-sm font-semibold text-slate-900">3. Timing and equation (Excel-aligned)</h3>
+    <p class="mt-2 text-sm leading-relaxed text-slate-700">
+      The earliest flow date acts as “day zero”. For each flow <span class="font-mono text-xs">i</span>, we measure time in fractional years using a <span class="font-medium">365-day calendar year</span>: <span class="font-mono text-xs">years_i</span> = (date<span class="font-mono text-xs">_i</span> − first_date) ÷ 365 (same shaping as Excel’s annual XIRR spacing).
+      The calculator finds <span class="font-mono text-xs">r</span> such that the net present value is zero:
+    </p>
+    <div class="mt-3 rounded-lg border border-slate-100 bg-slate-50 p-4 font-mono text-sm text-slate-800 overflow-x-auto">
+      Σ<sub>i</sub> &nbsp; C<sub>i</sub> × (1 + r)<sup>−years<sub>i</sub></sup> = 0
+    </div>
+    <p class="mt-3 text-sm leading-relaxed text-slate-700">
+      Here <span class="font-mono text-xs">C<sub>i</sub></span> is the signed reporting-currency amount on that date including the terminal value row. Where a solution exists, <span class="font-mono text-xs">r</span> is multiplied by 100 to obtain the <%= @reporting_currency ? "annualized headline figure in #{@reporting_currency.code} terms" : "annualized headline figure" %> at the top of this page.
+    </p>
+
+    <h3 class="mt-6 text-sm font-semibold text-slate-900">4. Solver and edge cases</h3>
+    <p class="mt-2 text-sm leading-relaxed text-slate-700">
+      Newton iterations start near <span class="font-mono text-xs">r = 0.1</span> and refine until NPV magnitude is negligible or iterations cap out. Results are withheld when there are fewer than two flows, when every amount has the same sign after merging the terminal value (IRR undefined), when the iterate leaves a valid bracket, when the solver steps into an impossible rate (<span class="font-mono text-xs">1 + r ≤ 0</span>), or when the Jacobian is too flat to converge—that matches the explanations shown when XIRR reports as unavailable.
+    </p>
+
+    <h3 class="mt-6 text-sm font-semibold text-slate-900">5. Interpretation limits</h3>
+    <p class="mt-2 text-sm leading-relaxed text-slate-700">
+      This is portfolio-scoped IRR on posted transaction amounts plus today’s NAV. Funding that never appears as buys (for example transfers from wallets that bypass buy records) cannot be reconstructed from portfolio rows alone—typical setups rely on buys capturing cash moved into holdings. Taxes, fees modeled outside <span class="font-mono text-xs">total_amount</span>, and quote timing are simplifications inherent to every XIRR rollup.
+      Use the disclosed figure as one summary tool alongside cost basis and real cash movement in your wallets.
+    </p>
+  </section>
+</div>

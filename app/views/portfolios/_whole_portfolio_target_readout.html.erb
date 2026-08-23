@@ -1,0 +1,30 @@
+<%# locals: (whole:, reporting_currency:) %>
+<% if whole %>
+  <dl class="mt-3 grid gap-2 rounded-md bg-slate-50 p-3 text-sm md:grid-cols-2">
+    <% if whole[:mode] == :percentage %>
+      <dt class="text-slate-600">Actual</dt>
+      <dd class="font-medium tabular-nums"><%= number_with_precision(whole[:actual_pct], precision: 2) %>%</dd>
+      <dt class="text-slate-600">Target</dt>
+      <dd class="font-medium tabular-nums"><%= number_with_precision(whole[:target_pct], precision: 2) %>%</dd>
+      <dt class="text-slate-600">Deviation (percentage points)</dt>
+      <dd><%= format_target_deviation_percent(whole[:deviation_pct], precision: 2) %></dd>
+      <dt class="text-slate-600">Deviation (value)</dt>
+      <dd><%= format_target_deviation_value(whole[:deviation_amount], deviation_pct: whole[:deviation_pct], precision: 2) %> <%= reporting_currency&.code %></dd>
+    <% else %>
+      <dt class="text-slate-600">Actual</dt>
+      <dd class="font-medium tabular-nums"><%= number_with_precision(whole[:actual_amount], precision: 2) %> <%= reporting_currency&.code %></dd>
+      <dt class="text-slate-600">Target</dt>
+      <dd class="font-medium tabular-nums"><%= number_with_precision(whole[:target_amount], precision: 2) %> <%= reporting_currency&.code %></dd>
+      <% if whole[:achieved_pct].present? %>
+        <dt class="text-slate-600">% of target</dt>
+        <dd class="font-medium tabular-nums text-slate-900"><%= number_with_precision(whole[:achieved_pct], precision: 1) %>%</dd>
+      <% end %>
+      <dt class="text-slate-600">Deviation (value)</dt>
+      <dd><%= format_target_deviation_value(whole[:deviation_amount], deviation_pct: whole[:deviation_pct], precision: 2) %> <%= reporting_currency&.code %></dd>
+      <% if whole[:deviation_pct].present? %>
+        <dt class="text-slate-600">Deviation (% of target amount)</dt>
+        <dd><%= format_target_deviation_percent(whole[:deviation_pct], precision: 2) %></dd>
+      <% end %>
+    <% end %>
+  </dl>
+<% end %>
