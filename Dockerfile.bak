@@ -18,19 +18,11 @@ RUN apt-get update -qq && \
     apt-get install --no-install-recommends -y curl libjemalloc2 libpq5 libvips && \
     rm -rf /var/lib/apt/lists /var/cache/apt/archives
 
-# Build-time knobs so this ONE Dockerfile builds either image:
-#   - default            -> lean production image (Render uses this, unchanged)
-#   - dev build args      -> full development image (docker-compose uses this)
-# docker-compose passes RAILS_ENV_ARG=development and BUNDLE_WITHOUT_ARG="" so
-# the development/test gems (debug, web-console, ...) are installed.
-ARG RAILS_ENV_ARG="production"
-ARG BUNDLE_WITHOUT_ARG="development:test"
-
-# Set environment (baked in here, inherited by the build and final stages).
-ENV RAILS_ENV="${RAILS_ENV_ARG}" \
+# Set production environment
+ENV RAILS_ENV="production" \
     BUNDLE_DEPLOYMENT="1" \
     BUNDLE_PATH="/usr/local/bundle" \
-    BUNDLE_WITHOUT="${BUNDLE_WITHOUT_ARG}" \
+    BUNDLE_WITHOUT="development:test" \
     RAILS_SERVE_STATIC_FILES="true" \
     RAILS_LOG_TO_STDOUT="true"
 

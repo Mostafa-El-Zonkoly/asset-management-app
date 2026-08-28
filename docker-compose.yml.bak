@@ -32,13 +32,7 @@ services:
     restart: unless-stopped
 
   web:
-    build:
-      context: .
-      args:
-        # Build a DEVELOPMENT image from the same Dockerfile: install all gem
-        # groups (debug, web-console, ...) so RAILS_ENV=development can boot.
-        RAILS_ENV_ARG: "development"
-        BUNDLE_WITHOUT_ARG: ""
+    build: .
     # dev only: bind mount below is owned by the host user, not uid 1000,
     # so run as root to avoid permission-denied on tmp/log/pids and bin/*.
     user: root
@@ -54,11 +48,8 @@ services:
       DATABASE_PASSWORD: password
       SECRET_KEY_BASE: "anylongrandonstringwilldo123456789abcdef"
     volumes:
-      # Only the app code is bind-mounted for live editing. Gems are NOT mounted
-      # as a volume any more: they live in the image (installed at build time),
-      # which avoids a stale volume masking freshly-built gems. Add a gem ->
-      # rebuild with: docker compose up --build
       - .:/rails
+      - bundle_cache:/usr/local/bundle
 
     depends_on:
       db:
@@ -69,6 +60,7 @@ services:
 
 volumes:
   postgres_data:
+  bundle_cache:
 
 networks:
   portfolio_net:
