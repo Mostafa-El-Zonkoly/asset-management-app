@@ -10,14 +10,13 @@ class CreateLotTrackingAndPurification < ActiveRecord::Migration[7.2]
       t.references :asset, null: false, foreign_key: true
       t.references :currency, null: false, foreign_key: true
       t.references :buy_transaction, null: false,
-        foreign_key: { to_table: :transactions }
+        foreign_key: { to_table: :transactions }, index: { unique: true }
       t.date :opened_on, null: false
       t.decimal :buy_price_per_unit, precision: 20, scale: 8
       t.decimal :original_quantity, precision: 20, scale: 8, null: false
       t.decimal :remaining_quantity, precision: 20, scale: 8, null: false
       t.timestamps
     end
-    add_index :asset_lots, :buy_transaction_id, unique: true
     add_index :asset_lots, %i[portfolio_id asset_id opened_on]
 
     create_table :lot_closures do |t|
