@@ -42,6 +42,12 @@ Rails.application.routes.draw do
   resources :transactions, only: %i[index show new create edit update]
   resources :wallets, only: [:index]
 
+  resources :purification_entries, only: %i[index update] do
+    collection do
+      post :generate
+    end
+  end
+
   resources :prices, only: %i[index create] do
     collection do
       post :fetch
