@@ -8,8 +8,15 @@ class Portfolio < ApplicationRecord
   has_many :portfolio_management_style_targets, dependent: :destroy
   has_many :portfolio_transactions, dependent: :restrict_with_error
   has_many :portfolio_snapshots, dependent: :destroy
+  has_many :asset_lots, dependent: :destroy
+  has_many :purification_entries, dependent: :destroy
 
   belongs_to :whole_target_type, class_name: "TargetType", optional: true
+
+  # How this portfolio's Sharia purification (تطهير) list is segmented:
+  #   aaoifi -> split by calendar quarter, day-weighted
+  #   sp     -> one entry per lot for its whole holding period
+  enum :purification_method, { aaoifi: "aaoifi", sp: "sp" }, default: "aaoifi"
 
   validates :name, presence: true
   validates :key, uniqueness: { allow_blank: true },

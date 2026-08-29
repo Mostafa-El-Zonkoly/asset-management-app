@@ -37,6 +37,11 @@ class TransactionProcessorService
       else
         raise Error, "Unsupported transaction type: #{type.key}"
       end
+
+      # Keep the FIFO lot ledger in sync after any buy/sell/stock_dividend.
+      if LotLedger::LEDGER_TYPE_KEYS.include?(type.key) && attrs[:portfolio_id].present?
+        LotLedger.rebuild!(attrs[:portfolio_id], attrs[:asset_id])
+      end
     end
   end
 

@@ -23,8 +23,11 @@ class TransactionAmendService
     deltas = normalized_deltas(tx, attrs)
     return tx if deltas.empty?
 
+    before = [tx.portfolio_id, tx.asset_id, tx.transaction_type&.key]
+
     ActiveRecord::Base.transaction(requires_new: true) do
       apply_patch!(tx, deltas)
+      sync_lot_ledger!(before, tx)
     end
 
     tx
@@ -35,6 +38,18 @@ class TransactionAmendService
   end
 
   private
+
+  # Rebuild the FIFO lot ledger for the transaction's (portfolio, asset) after an
+  # edit, and also for its previous pair if a reassignment moved it.
+  def sync_lot_ledger!(before, tx)
+    b_pid, b_aid, b_key = before
+    pairs = []
+    pairs << [b_pid, b_aid] if LotLedger::LEDGER_TYPE_KEYS.include?(b_key) && b_pid.present?
+    if LotLedger::LEDGER_TYPE_KEYS.include?(tx.transaction_type&.key) && tx.portfolio_id.present?
+      pairs << [tx.portfolio_id, tx.asset_id]
+    end
+    pairs.uniq.each { |pid, aid| LotLedger.rebuild!(pid, aid) }
+  end
 
   def apply_patch!(tx, deltas)
     return apply_transfer_metadata_only!(tx, deltas) if tx.transfer_transaction?
