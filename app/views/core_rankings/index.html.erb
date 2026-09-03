@@ -45,6 +45,20 @@
   </p>
 <% end %>
 
+<details class="mt-6 rounded-xl border border-slate-200 bg-white p-4 text-sm shadow-sm">
+  <summary class="cursor-pointer font-medium text-slate-700">How each column is calculated</summary>
+  <dl class="mt-3 grid gap-x-8 gap-y-2 sm:grid-cols-2">
+    <div><dt class="font-medium text-slate-800">Score /100</dt><dd class="text-slate-600">Weighted sum of all seven factor points, normalised by the total configured weight so it always reads out of 100.</dd></div>
+    <div><dt class="font-medium text-slate-800">Entry / Quality / Catalyst</dt><dd class="text-slate-600">Your manual 0–10 score for the stock × that factor's weight. Blank counts as 0.</dd></div>
+    <div><dt class="font-medium text-slate-800">Sharia</dt><dd class="text-slate-600">Derived from the asset's zaka % (clean ⇒ full points, dirty ⇒ zero) unless you set a manual override. The small <code>z=</code> shows the zaka %.</dd></div>
+    <div><dt class="font-medium text-slate-800">Balance</dt><dd class="text-slate-600">Stock + Sector + Subsector points combined. Each gives full points when that weight is at/below its “full” threshold and zero at/above its “cap” — the more under-weight, the more points.</dd></div>
+    <div><dt class="font-medium text-slate-800">Weights now</dt><dd class="text-slate-600">Current weight of the stock (S), its sector (Sec) and subsector (Sub) within the selected scope — share of the “stocks part” (direct-stock value).</dd></div>
+    <div><dt class="font-medium text-slate-800">Off high</dt><dd class="text-slate-600">How far the latest price sits below its 52-week high (bigger = cheaper). Turns red with an “Extended” tag when it's within your configured distance of the high.</dd></div>
+    <div><dt class="font-medium text-slate-800">vs MA</dt><dd class="text-slate-600">Latest price versus its moving average (+ = above the average).</dd></div>
+    <div><dt class="font-medium text-slate-800">Off high · vs MA · Extended</dt><dd class="text-slate-600">Technical helper only — these do <strong>not</strong> affect the score or the ranking; they're there so you can exclude extended names yourself.</dd></div>
+  </dl>
+</details>
+
 <% if @rows.empty? %>
   <div class="mt-8 rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
     <p class="text-slate-600">No Core candidates yet.</p>
