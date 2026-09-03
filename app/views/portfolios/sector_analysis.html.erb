@@ -5,6 +5,7 @@
     <p class="mt-1 text-sm text-slate-600">
       Direct stock holdings with a sector assigned, aggregated across all portfolios.
       <strong>Actual %</strong> is each sector's share of total sectored assets.
+      <strong>Actual %</strong> is within the current filter; <strong>Overall %</strong> is the same weight across all portfolios (ignoring the filter).
       <strong>Target %</strong> is your desired allocation — click the pencil to set or update it.
       Click any column header to sort.
     </p>
@@ -56,10 +57,11 @@
           <th class="cursor-pointer select-none px-4 py-3 text-right hover:bg-slate-100" data-col="1" data-type="number">Holdings <span class="sort-icon text-slate-300">↕</span></th>
           <th class="cursor-pointer select-none px-4 py-3 text-right hover:bg-slate-100" data-col="2" data-type="number">Value (<%= @reporting_currency&.code %>) <span class="sort-icon text-slate-300">↕</span></th>
           <th class="cursor-pointer select-none px-4 py-3 text-right hover:bg-slate-100" data-col="3" data-type="number">Actual % <span class="sort-icon text-slate-300">↕</span></th>
-          <th class="cursor-pointer select-none px-4 py-3 text-right hover:bg-slate-100" data-col="4" data-type="number">Target % <span class="sort-icon text-slate-300">↕</span></th>
-          <th class="cursor-pointer select-none px-4 py-3 text-right hover:bg-slate-100" data-col="5" data-type="number">Deviation (pp) <span class="sort-icon text-slate-300">↕</span></th>
-          <th class="cursor-pointer select-none px-4 py-3 text-right hover:bg-slate-100" data-col="6" data-type="number">% of included <span class="sort-icon text-slate-300">↕</span></th>
-          <th class="cursor-pointer select-none px-4 py-3 text-right hover:bg-slate-100" data-col="7" data-type="number">Gain/Loss % <span class="sort-icon text-slate-300">↕</span></th>
+          <th class="cursor-pointer select-none px-4 py-3 text-right hover:bg-slate-100" data-col="4" data-type="number">Overall % <span class="sort-icon text-slate-300">↕</span></th>
+          <th class="cursor-pointer select-none px-4 py-3 text-right hover:bg-slate-100" data-col="5" data-type="number">Target % <span class="sort-icon text-slate-300">↕</span></th>
+          <th class="cursor-pointer select-none px-4 py-3 text-right hover:bg-slate-100" data-col="6" data-type="number">Deviation (pp) <span class="sort-icon text-slate-300">↕</span></th>
+          <th class="cursor-pointer select-none px-4 py-3 text-right hover:bg-slate-100" data-col="7" data-type="number">% of included <span class="sort-icon text-slate-300">↕</span></th>
+          <th class="cursor-pointer select-none px-4 py-3 text-right hover:bg-slate-100" data-col="8" data-type="number">Gain/Loss % <span class="sort-icon text-slate-300">↕</span></th>
           <th class="px-4 py-3 text-center">Target</th>
         </tr>
       </thead>
@@ -70,7 +72,7 @@
           <% target_pct = target&.target_percentage&.to_f %>
           <% deviation = target_pct ? (actual_pct - target_pct).round(2) : nil %>
           <tr class="hover:bg-slate-50"
-              data-vals="<%= [row[:sector].label, row[:asset_count], row[:value].to_f, actual_pct, target_pct || -99999, deviation || -99999, row[:pct_of_included].to_f, row[:gain_pct].to_f].to_json %>">
+              data-vals="<%= [row[:sector].label, row[:asset_count], row[:value].to_f, actual_pct, row[:pct_of_sectored_overall].to_f, target_pct || -99999, deviation || -99999, row[:pct_of_included].to_f, row[:gain_pct].to_f].to_json %>">
             <td class="px-4 py-3 font-medium text-slate-900">
               <%= link_to row[:sector].label, sector_detail_portfolios_path(sector_id: row[:sector].id, portfolio_ids: @selected_portfolio_ids), class: "hover:text-blue-600 hover:underline" %>
             </td>
@@ -105,6 +107,9 @@
                 <span class="w-12 text-right font-mono text-slate-700"><%= number_with_precision(actual_pct, precision: 1) %>%</span>
               </div>
             </td>
+
+            <%# Overall % (all portfolios, ignores filter) %>
+            <td class="px-4 py-3 text-right font-mono text-slate-500"><%= number_with_precision(row[:pct_of_sectored_overall], precision: 1) %>%</td>
 
             <%# Target % %>
             <td class="px-4 py-3 text-right font-mono">
@@ -188,6 +193,7 @@
           <td class="px-4 py-3 text-right"><%= @sector_rows.sum { |r| r[:asset_count] } %></td>
           <td class="px-4 py-3 text-right font-mono"><%= number_with_precision(@sectored_total, precision: 2) %></td>
           <td class="px-4 py-3 text-right font-mono">100.0%</td>
+          <td class="px-4 py-3 text-right font-mono text-slate-500"><%= number_with_precision(@sector_rows.sum { |r| r[:pct_of_sectored_overall].to_f }, precision: 1) %>%</td>
           <td class="px-4 py-3 text-right font-mono <%= @total_target_pct > 100 ? 'text-red-600' : '' %>">
             <%= number_with_precision(@total_target_pct, precision: 1) %>%
           </td>

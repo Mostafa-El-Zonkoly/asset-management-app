@@ -69,6 +69,10 @@
               <span class="ml-1 font-mono font-medium"><%= number_with_precision(group[:pct_of_sectored], precision: 1) %>%</span>
             </span>
             <span>
+              <span class="text-xs uppercase tracking-wide text-slate-400">% overall</span>
+              <span class="ml-1 font-mono font-medium text-slate-500"><%= number_with_precision(group[:pct_of_sectored_overall], precision: 1) %>%</span>
+            </span>
+            <span>
               <span class="text-xs uppercase tracking-wide text-slate-400">% of included</span>
               <span class="ml-1 font-mono font-medium"><%= number_with_precision(group[:pct_of_included], precision: 1) %>%</span>
             </span>
@@ -85,13 +89,14 @@
                 <th class="cursor-pointer select-none px-4 py-2 text-right hover:bg-slate-50" data-col="2" data-type="number">Value (<%= @reporting_currency&.code %>) <span class="sort-icon text-slate-300">↕</span></th>
                 <th class="cursor-pointer select-none px-4 py-2 text-right hover:bg-slate-50" data-col="3" data-type="number">% of sector <span class="sort-icon text-slate-300">↕</span></th>
                 <th class="cursor-pointer select-none px-4 py-2 text-right hover:bg-slate-50" data-col="4" data-type="number">% of sectored <span class="sort-icon text-slate-300">↕</span></th>
-                <th class="cursor-pointer select-none px-4 py-2 text-right hover:bg-slate-50" data-col="5" data-type="number">% of included <span class="sort-icon text-slate-300">↕</span></th>
+                <th class="cursor-pointer select-none px-4 py-2 text-right hover:bg-slate-50" data-col="5" data-type="number">% overall <span class="sort-icon text-slate-300">↕</span></th>
+                <th class="cursor-pointer select-none px-4 py-2 text-right hover:bg-slate-50" data-col="6" data-type="number">% of included <span class="sort-icon text-slate-300">↕</span></th>
               </tr>
             </thead>
             <tbody id="<%= tbody_id %>" class="divide-y divide-slate-100">
               <% group[:speciality_rows].each do |row| %>
                 <tr class="hover:bg-slate-50"
-                    data-vals="<%= [row[:speciality]&.label || '', row[:asset_count], row[:value].to_f, row[:pct_of_sector].to_f, row[:pct_of_sectored].to_f, row[:pct_of_included].to_f].to_json %>">
+                    data-vals="<%= [row[:speciality]&.label || '', row[:asset_count], row[:value].to_f, row[:pct_of_sector].to_f, row[:pct_of_sectored].to_f, row[:pct_of_sectored_overall].to_f, row[:pct_of_included].to_f].to_json %>">
                   <td class="pl-8 px-4 py-2 text-slate-700">
                     <% if row[:speciality] %>
                       <%= link_to row[:speciality].label, sector_speciality_detail_portfolios_path(sector_id: group[:sector].id, speciality_id: row[:speciality].id, portfolio_ids: @selected_portfolio_ids), class: "hover:text-blue-600 hover:underline" %>
@@ -123,6 +128,7 @@
                       <span class="w-12 text-right font-mono text-slate-700"><%= number_with_precision(row[:pct_of_sectored], precision: 1) %>%</span>
                     </div>
                   </td>
+                  <td class="px-4 py-2 text-right font-mono text-slate-500"><%= number_with_precision(row[:pct_of_sectored_overall], precision: 1) %>%</td>
                   <td class="px-4 py-2 text-right">
                     <div class="flex items-center justify-end gap-2">
                       <div class="h-2 w-16 overflow-hidden rounded-full bg-slate-100">
@@ -141,6 +147,7 @@
                 <td class="px-4 py-2 text-right font-mono"><%= number_with_precision(group[:sector_total], precision: 2) %></td>
                 <td class="px-4 py-2 text-right font-mono">100.0%</td>
                 <td class="px-4 py-2 text-right font-mono"><%= number_with_precision(group[:pct_of_sectored], precision: 1) %>%</td>
+                <td class="px-4 py-2 text-right font-mono text-slate-500"><%= number_with_precision(group[:pct_of_sectored_overall], precision: 1) %>%</td>
                 <td class="px-4 py-2 text-right font-mono"><%= number_with_precision(group[:pct_of_included], precision: 1) %>%</td>
               </tr>
             </tfoot>

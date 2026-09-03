@@ -48,6 +48,38 @@ class PortfolioStatsService
       Portfolio.where(id: ids).inject(0.to_d) { |sum, p| sum + summary(p)[:total_value] }
     end
 
+    # All-portfolios (or filtered) sectored value per sector_id, for the "overall"
+    # weight column. Weight base = direct-stock sectored value (matches Actual %).
+    def sector_sectored_weights(portfolio_ids = nil)
+      ids = normalize_ids(portfolio_ids)
+      by_sector_id = Hash.new(0.to_d)
+      scope = Holding.joins(:asset).merge(Asset.active).includes(asset: [ :asset_type, :sector ])
+      scope = scope.where(portfolio_id: ids) if ids
+      scope.find_each do |h|
+        next unless h.asset.direct_stock? && h.asset.sector_id.present?
+
+        by_sector_id[h.asset.sector_id] += HoldingsCalculatorService.for_holding(h).current_value
+      end
+      { by_sector_id: by_sector_id, total: by_sector_id.values.sum }
+    end
+
+    # Same, split to sector_id and [sector_id, speciality_id] for the speciality view.
+    def sector_speciality_sectored_weights(portfolio_ids = nil)
+      ids = normalize_ids(portfolio_ids)
+      sector_value = Hash.new(0.to_d)
+      spec_value = Hash.new(0.to_d)
+      scope = Holding.joins(:asset).merge(Asset.active).includes(asset: [ :asset_type, :sector, :speciality ])
+      scope = scope.where(portfolio_id: ids) if ids
+      scope.find_each do |h|
+        next unless h.asset.direct_stock? && h.asset.sector_id.present?
+
+        v = HoldingsCalculatorService.for_holding(h).current_value
+        sector_value[h.asset.sector_id] += v
+        spec_value[[h.asset.sector_id, h.asset.speciality_id]] += v
+      end
+      { sector_value: sector_value, spec_value: spec_value, grand_total: sector_value.values.sum }
+    end
+
     # Sum of all active wallet balances converted to reporting currency (free cash).
     def total_wallet_balance_reporting
       base_id = Currency.reporting_currency_id
@@ -128,6 +160,9 @@ class PortfolioStatsService
       sectored_total = by_sector.values.sum
       included_total = included_total_value(portfolio_ids)
 
+      overall = ids ? sector_sectored_weights(nil) : { by_sector_id: by_sector.transform_keys(&:id), total: sectored_total }
+      overall_total = overall[:total]
+
       by_sector.sort_by { |sector, _| sector.label }.map do |sector, value|
         pct_of_sectored = sectored_total.nonzero? ? ((value / sectored_total) * 100) : 0.to_d
         pct_of_included = included_total.nonzero? ? ((value / included_total) * 100) : 0.to_d
@@ -139,6 +174,7 @@ class PortfolioStatsService
           value: value,
           asset_count: asset_ids_per_sector[sector].size,
           pct_of_sectored: pct_of_sectored,
+          pct_of_sectored_overall: overall_total.nonzero? ? ((overall[:by_sector_id][sector.id].to_d / overall_total) * 100) : 0.to_d,
           pct_of_included: pct_of_included,
           cost_basis: cost,
           unrealised_gain: gain,
@@ -173,6 +209,19 @@ class PortfolioStatsService
       sectored_total = accum.values.map { |s| s.values.sum }.sum
       included_total = included_total_value(portfolio_ids)
 
+      if ids
+        overall = sector_speciality_sectored_weights(nil)
+      else
+        sv = {}
+        spv = {}
+        accum.each do |sector, by_spec|
+          sv[sector.id] = by_spec.values.sum
+          by_spec.each { |spec, val| spv[[sector.id, spec&.id]] = val }
+        end
+        overall = { sector_value: sv, spec_value: spv, grand_total: sectored_total }
+      end
+      overall_total = overall[:grand_total]
+
       accum.sort_by { |sector, _| sector.label }.map do |sector, by_spec|
         sector_total = by_spec.values.sum
         pct_sector_of_sectored = sectored_total.nonzero? ? ((sector_total / sectored_total) * 100) : 0.to_d
@@ -188,6 +237,7 @@ class PortfolioStatsService
             asset_count: asset_ids[sector][spec].size,
             pct_of_sector: pct_of_sector,
             pct_of_sectored: pct_of_sectored,
+            pct_of_sectored_overall: overall_total.nonzero? ? ((overall[:spec_value][[sector.id, spec&.id]].to_d / overall_total) * 100) : 0.to_d,
             pct_of_included: pct_of_included
           }
         end
@@ -196,6 +246,7 @@ class PortfolioStatsService
           sector: sector,
           sector_total: sector_total,
           pct_of_sectored: pct_sector_of_sectored,
+          pct_of_sectored_overall: overall_total.nonzero? ? ((overall[:sector_value][sector.id].to_d / overall_total) * 100) : 0.to_d,
           pct_of_included: pct_sector_of_included,
           speciality_rows: speciality_rows
         }
