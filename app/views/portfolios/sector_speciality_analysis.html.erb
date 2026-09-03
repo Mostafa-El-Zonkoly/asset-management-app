@@ -1,7 +1,7 @@
 <% content_for :title, "Sector / speciality analysis" %>
 <div class="flex flex-wrap items-end justify-between gap-4">
   <div>
-    <h1 class="text-2xl font-semibold text-slate-900">Sector &amp; speciality analysis — all portfolios</h1>
+    <h1 class="text-2xl font-semibold text-slate-900">Sector &amp; speciality analysis — <%= @selected_portfolio_ids.any? ? "selected portfolios" : "all portfolios" %></h1>
     <p class="mt-1 text-sm text-slate-600">
       Direct stock holdings with a sector assigned, broken down by speciality within each sector.
       Click a sector header to collapse / expand it. Click any column header inside a sector to sort.
@@ -10,9 +10,11 @@
   <div class="flex gap-2">
     <button id="expand-all" class="rounded-md border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50">Expand all</button>
     <button id="collapse-all" class="rounded-md border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50">Collapse all</button>
-    <%= link_to "By sector only", sector_analysis_portfolios_path, class: "rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+    <%= link_to "By sector only", sector_analysis_portfolios_path(portfolio_ids: @selected_portfolio_ids), class: "rounded-md border border-slate-300 px-3 py-2 text-sm" %>
   </div>
 </div>
+
+<%= render "portfolios/portfolio_filter", url: sector_speciality_analysis_portfolios_path, portfolios: @portfolios, selected_ids: @selected_portfolio_ids %>
 
 <% if @reporting_currency %>
   <p class="mt-4 text-sm text-slate-600">Figures in reporting currency <span class="font-medium"><%= @reporting_currency.code %></span>.</p>
@@ -30,7 +32,7 @@
     <p class="mt-1 text-xl font-semibold"><%= number_with_precision(@sectored_total, precision: 2) %> <%= @reporting_currency&.code %></p>
   </div>
   <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-    <p class="text-xs uppercase tracking-wide text-slate-500">Included portfolios total</p>
+    <p class="text-xs uppercase tracking-wide text-slate-500"><%= @selected_portfolio_ids.any? ? "Selected portfolios total" : "Included portfolios total" %></p>
     <p class="mt-1 text-xl font-semibold"><%= number_with_precision(@included_total, precision: 2) %> <%= @reporting_currency&.code %></p>
   </div>
   <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -54,7 +56,7 @@
                 aria-expanded="true">
           <div class="flex items-center gap-3">
             <span class="text-slate-400 transition-transform duration-150 toggle-chevron">▾</span>
-            <%= link_to group[:sector].label, sector_detail_portfolios_path(sector_id: group[:sector].id),
+            <%= link_to group[:sector].label, sector_detail_portfolios_path(sector_id: group[:sector].id, portfolio_ids: @selected_portfolio_ids),
                   class: "font-semibold text-slate-900 hover:text-blue-600 hover:underline",
                   onclick: "event.stopPropagation();" %>
             <span class="text-sm text-slate-500">
@@ -65,6 +67,10 @@
             <span>
               <span class="text-xs uppercase tracking-wide text-slate-400">% of sectored</span>
               <span class="ml-1 font-mono font-medium"><%= number_with_precision(group[:pct_of_sectored], precision: 1) %>%</span>
+            </span>
+            <span>
+              <span class="text-xs uppercase tracking-wide text-slate-400">% overall</span>
+              <span class="ml-1 font-mono font-medium text-slate-500"><%= number_with_precision(group[:pct_of_sectored_overall], precision: 1) %>%</span>
             </span>
             <span>
               <span class="text-xs uppercase tracking-wide text-slate-400">% of included</span>
@@ -83,25 +89,26 @@
                 <th class="cursor-pointer select-none px-4 py-2 text-right hover:bg-slate-50" data-col="2" data-type="number">Value (<%= @reporting_currency&.code %>) <span class="sort-icon text-slate-300">↕</span></th>
                 <th class="cursor-pointer select-none px-4 py-2 text-right hover:bg-slate-50" data-col="3" data-type="number">% of sector <span class="sort-icon text-slate-300">↕</span></th>
                 <th class="cursor-pointer select-none px-4 py-2 text-right hover:bg-slate-50" data-col="4" data-type="number">% of sectored <span class="sort-icon text-slate-300">↕</span></th>
-                <th class="cursor-pointer select-none px-4 py-2 text-right hover:bg-slate-50" data-col="5" data-type="number">% of included <span class="sort-icon text-slate-300">↕</span></th>
+                <th class="cursor-pointer select-none px-4 py-2 text-right hover:bg-slate-50" data-col="5" data-type="number">% overall <span class="sort-icon text-slate-300">↕</span></th>
+                <th class="cursor-pointer select-none px-4 py-2 text-right hover:bg-slate-50" data-col="6" data-type="number">% of included <span class="sort-icon text-slate-300">↕</span></th>
               </tr>
             </thead>
             <tbody id="<%= tbody_id %>" class="divide-y divide-slate-100">
               <% group[:speciality_rows].each do |row| %>
                 <tr class="hover:bg-slate-50"
-                    data-vals="<%= [row[:speciality]&.label || '', row[:asset_count], row[:value].to_f, row[:pct_of_sector].to_f, row[:pct_of_sectored].to_f, row[:pct_of_included].to_f].to_json %>">
+                    data-vals="<%= [row[:speciality]&.label || '', row[:asset_count], row[:value].to_f, row[:pct_of_sector].to_f, row[:pct_of_sectored].to_f, row[:pct_of_sectored_overall].to_f, row[:pct_of_included].to_f].to_json %>">
                   <td class="pl-8 px-4 py-2 text-slate-700">
                     <% if row[:speciality] %>
-                      <%= link_to row[:speciality].label, sector_speciality_detail_portfolios_path(sector_id: group[:sector].id, speciality_id: row[:speciality].id), class: "hover:text-blue-600 hover:underline" %>
+                      <%= link_to row[:speciality].label, sector_speciality_detail_portfolios_path(sector_id: group[:sector].id, speciality_id: row[:speciality].id, portfolio_ids: @selected_portfolio_ids), class: "hover:text-blue-600 hover:underline" %>
                     <% else %>
-                      <%= link_to "— no speciality —", sector_detail_portfolios_path(sector_id: group[:sector].id), class: "text-slate-400 hover:text-blue-600 hover:underline" %>
+                      <%= link_to "— no speciality —", sector_detail_portfolios_path(sector_id: group[:sector].id, portfolio_ids: @selected_portfolio_ids), class: "text-slate-400 hover:text-blue-600 hover:underline" %>
                     <% end %>
                   </td>
                   <td class="px-4 py-2 text-right text-slate-500">
                     <% if row[:speciality] %>
-                      <%= link_to row[:asset_count], sector_speciality_detail_portfolios_path(sector_id: group[:sector].id, speciality_id: row[:speciality].id), class: "text-blue-600 hover:underline" %>
+                      <%= link_to row[:asset_count], sector_speciality_detail_portfolios_path(sector_id: group[:sector].id, speciality_id: row[:speciality].id, portfolio_ids: @selected_portfolio_ids), class: "text-blue-600 hover:underline" %>
                     <% else %>
-                      <%= link_to row[:asset_count], sector_detail_portfolios_path(sector_id: group[:sector].id), class: "text-blue-600 hover:underline" %>
+                      <%= link_to row[:asset_count], sector_detail_portfolios_path(sector_id: group[:sector].id, portfolio_ids: @selected_portfolio_ids), class: "text-blue-600 hover:underline" %>
                     <% end %>
                   </td>
                   <td class="px-4 py-2 text-right font-mono"><%= number_with_precision(row[:value], precision: 2) %></td>
@@ -121,6 +128,7 @@
                       <span class="w-12 text-right font-mono text-slate-700"><%= number_with_precision(row[:pct_of_sectored], precision: 1) %>%</span>
                     </div>
                   </td>
+                  <td class="px-4 py-2 text-right font-mono text-slate-500"><%= number_with_precision(row[:pct_of_sectored_overall], precision: 1) %>%</td>
                   <td class="px-4 py-2 text-right">
                     <div class="flex items-center justify-end gap-2">
                       <div class="h-2 w-16 overflow-hidden rounded-full bg-slate-100">
@@ -139,6 +147,7 @@
                 <td class="px-4 py-2 text-right font-mono"><%= number_with_precision(group[:sector_total], precision: 2) %></td>
                 <td class="px-4 py-2 text-right font-mono">100.0%</td>
                 <td class="px-4 py-2 text-right font-mono"><%= number_with_precision(group[:pct_of_sectored], precision: 1) %>%</td>
+                <td class="px-4 py-2 text-right font-mono text-slate-500"><%= number_with_precision(group[:pct_of_sectored_overall], precision: 1) %>%</td>
                 <td class="px-4 py-2 text-right font-mono"><%= number_with_precision(group[:pct_of_included], precision: 1) %>%</td>
               </tr>
             </tfoot>

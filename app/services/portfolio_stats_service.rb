@@ -30,6 +30,56 @@ class PortfolioStatsService
       rows.select { |r| r[:portfolio].include_in_combined_percent }.sum { |r| r[:stats][:total_value].to_d }
     end
 
+    # Normalize a portfolio_ids filter (array/scalar/nil) to a clean array of ints,
+    # or nil when no filter is requested.
+    def normalize_ids(portfolio_ids)
+      return nil if portfolio_ids.blank?
+
+      ids = Array(portfolio_ids).map { |x| x.to_i }.reject(&:zero?).uniq
+      ids.presence
+    end
+
+    # Denominator for "% of included": the selected portfolios' total value when a
+    # filter is active, otherwise all portfolios flagged include_in_combined_percent.
+    def included_total_value(portfolio_ids = nil)
+      ids = normalize_ids(portfolio_ids)
+      return combined_percent_total_value if ids.nil?
+
+      Portfolio.where(id: ids).inject(0.to_d) { |sum, p| sum + summary(p)[:total_value] }
+    end
+
+    # All-portfolios (or filtered) sectored value per sector_id, for the "overall"
+    # weight column. Weight base = direct-stock sectored value (matches Actual %).
+    def sector_sectored_weights(portfolio_ids = nil)
+      ids = normalize_ids(portfolio_ids)
+      by_sector_id = Hash.new(0.to_d)
+      scope = Holding.joins(:asset).merge(Asset.active).includes(asset: [ :asset_type, :sector ])
+      scope = scope.where(portfolio_id: ids) if ids
+      scope.find_each do |h|
+        next unless h.asset.direct_stock? && h.asset.sector_id.present?
+
+        by_sector_id[h.asset.sector_id] += HoldingsCalculatorService.for_holding(h).current_value
+      end
+      { by_sector_id: by_sector_id, total: by_sector_id.values.sum }
+    end
+
+    # Same, split to sector_id and [sector_id, speciality_id] for the speciality view.
+    def sector_speciality_sectored_weights(portfolio_ids = nil)
+      ids = normalize_ids(portfolio_ids)
+      sector_value = Hash.new(0.to_d)
+      spec_value = Hash.new(0.to_d)
+      scope = Holding.joins(:asset).merge(Asset.active).includes(asset: [ :asset_type, :sector, :speciality ])
+      scope = scope.where(portfolio_id: ids) if ids
+      scope.find_each do |h|
+        next unless h.asset.direct_stock? && h.asset.sector_id.present?
+
+        v = HoldingsCalculatorService.for_holding(h).current_value
+        sector_value[h.asset.sector_id] += v
+        spec_value[[h.asset.sector_id, h.asset.speciality_id]] += v
+      end
+      { sector_value: sector_value, spec_value: spec_value, grand_total: sector_value.values.sum }
+    end
+
     # Sum of all active wallet balances converted to reporting currency (free cash).
     def total_wallet_balance_reporting
       base_id = Currency.reporting_currency_id
@@ -87,13 +137,16 @@ class PortfolioStatsService
     # Percentages:
     #   - pct_of_sectored: share of total value of all sectored assets (across all portfolios)
     #   - pct_of_included: share of total value of portfolios with include_in_combined_percent
-    def cross_portfolio_sector_analysis
+    def cross_portfolio_sector_analysis(portfolio_ids = nil)
       by_sector = Hash.new(0.to_d)
       cost_by_sector = Hash.new(0.to_d)
       gain_by_sector = Hash.new(0.to_d)
       asset_ids_per_sector = Hash.new { |h, k| h[k] = Set.new }
+      ids = normalize_ids(portfolio_ids)
 
-      Holding.joins(:asset).merge(Asset.active).includes(asset: [ :asset_type, :sector ]).find_each do |h|
+      scope = Holding.joins(:asset).merge(Asset.active).includes(asset: [ :asset_type, :sector ])
+      scope = scope.where(portfolio_id: ids) if ids
+      scope.find_each do |h|
         next unless h.asset.direct_stock? && h.asset.sector_id.present?
 
         calc = HoldingsCalculatorService.for_holding(h)
@@ -105,7 +158,10 @@ class PortfolioStatsService
       end
 
       sectored_total = by_sector.values.sum
-      included_total = combined_percent_total_value
+      included_total = included_total_value(portfolio_ids)
+
+      overall = ids ? sector_sectored_weights(nil) : { by_sector_id: by_sector.transform_keys(&:id), total: sectored_total }
+      overall_total = overall[:total]
 
       by_sector.sort_by { |sector, _| sector.label }.map do |sector, value|
         pct_of_sectored = sectored_total.nonzero? ? ((value / sectored_total) * 100) : 0.to_d
@@ -118,6 +174,7 @@ class PortfolioStatsService
           value: value,
           asset_count: asset_ids_per_sector[sector].size,
           pct_of_sectored: pct_of_sectored,
+          pct_of_sectored_overall: overall_total.nonzero? ? ((overall[:by_sector_id][sector.id].to_d / overall_total) * 100) : 0.to_d,
           pct_of_included: pct_of_included,
           cost_basis: cost,
           unrealised_gain: gain,
@@ -130,13 +187,16 @@ class PortfolioStatsService
     # Same filters as cross_portfolio_sector_analysis.
     # Returns a hash keyed by sector, each value being an array of speciality rows
     # plus a :_total row for the sector.
-    def cross_portfolio_sector_speciality_analysis
+    def cross_portfolio_sector_speciality_analysis(portfolio_ids = nil)
       # accum[sector][speciality_or_nil] = value
       accum = Hash.new { |h, k| h[k] = Hash.new(0.to_d) }
       asset_ids = Hash.new { |h, k| h[k] = Hash.new { |h2, k2| h2[k2] = Set.new } }
+      ids = normalize_ids(portfolio_ids)
 
-      Holding.joins(:asset).merge(Asset.active)
-        .includes(asset: [ :asset_type, :sector, :speciality ]).find_each do |h|
+      scope = Holding.joins(:asset).merge(Asset.active)
+        .includes(asset: [ :asset_type, :sector, :speciality ])
+      scope = scope.where(portfolio_id: ids) if ids
+      scope.find_each do |h|
         next unless h.asset.direct_stock? && h.asset.sector_id.present?
 
         val = HoldingsCalculatorService.for_holding(h).current_value
@@ -147,7 +207,20 @@ class PortfolioStatsService
       end
 
       sectored_total = accum.values.map { |s| s.values.sum }.sum
-      included_total = combined_percent_total_value
+      included_total = included_total_value(portfolio_ids)
+
+      if ids
+        overall = sector_speciality_sectored_weights(nil)
+      else
+        sv = {}
+        spv = {}
+        accum.each do |sector, by_spec|
+          sv[sector.id] = by_spec.values.sum
+          by_spec.each { |spec, val| spv[[sector.id, spec&.id]] = val }
+        end
+        overall = { sector_value: sv, spec_value: spv, grand_total: sectored_total }
+      end
+      overall_total = overall[:grand_total]
 
       accum.sort_by { |sector, _| sector.label }.map do |sector, by_spec|
         sector_total = by_spec.values.sum
@@ -164,6 +237,7 @@ class PortfolioStatsService
             asset_count: asset_ids[sector][spec].size,
             pct_of_sector: pct_of_sector,
             pct_of_sectored: pct_of_sectored,
+            pct_of_sectored_overall: overall_total.nonzero? ? ((overall[:spec_value][[sector.id, spec&.id]].to_d / overall_total) * 100) : 0.to_d,
             pct_of_included: pct_of_included
           }
         end
@@ -172,6 +246,7 @@ class PortfolioStatsService
           sector: sector,
           sector_total: sector_total,
           pct_of_sectored: pct_sector_of_sectored,
+          pct_of_sectored_overall: overall_total.nonzero? ? ((overall[:sector_value][sector.id].to_d / overall_total) * 100) : 0.to_d,
           pct_of_included: pct_sector_of_included,
           speciality_rows: speciality_rows
         }
@@ -181,16 +256,18 @@ class PortfolioStatsService
     # Returns one row per holding (portfolio + asset) for a given sector,
     # optionally filtered to a specific speciality.
     # Each row includes current value and percentages vs sectored total and included-portfolios total.
-    def sector_asset_detail(sector, speciality: nil)
-      included_total = combined_percent_total_value
+    def sector_asset_detail(sector, speciality: nil, portfolio_ids: nil)
+      ids = normalize_ids(portfolio_ids)
+      included_total = included_total_value(portfolio_ids)
 
       # First pass: collect all sectored holdings to compute sectored total for denominators
       all_sectored_value = 0.to_d
       matching_holdings = []
 
-      Holding.joins(:asset).merge(Asset.active)
+      p1 = Holding.joins(:asset).merge(Asset.active)
         .includes(:portfolio, asset: [ :asset_type, :sector, :speciality, :currency ])
-        .find_each do |h|
+      p1 = p1.where(portfolio_id: ids) if ids
+      p1.find_each do |h|
         next unless h.asset.direct_stock? && h.asset.sector_id == sector.id
         next if speciality && h.asset.speciality_id != speciality&.id
 
@@ -200,17 +277,20 @@ class PortfolioStatsService
 
       # Need true sectored total (all sectors) for pct_of_sectored
       full_sectored_total = 0.to_d
-      Holding.joins(:asset).merge(Asset.active)
-        .includes(asset: :asset_type).find_each do |h|
+      p2 = Holding.joins(:asset).merge(Asset.active).includes(asset: :asset_type)
+      p2 = p2.where(portfolio_id: ids) if ids
+      p2.find_each do |h|
         next unless h.asset.direct_stock? && h.asset.sector_id.present?
 
         full_sectored_total += HoldingsCalculatorService.for_holding(h).current_value
       end
 
       # Second pass: build rows
-      Holding.joins(:asset).merge(Asset.active)
+      p3 = Holding.joins(:asset).merge(Asset.active)
         .includes(:portfolio, asset: [ :asset_type, :sector, :speciality, :currency ])
         .order("portfolios.name, assets.name")
+      p3 = p3.where(portfolio_id: ids) if ids
+      p3
         .select { |h| h.asset.direct_stock? && h.asset.sector_id == sector.id &&
                       (!speciality || h.asset.speciality_id == speciality&.id) }
         .map do |h|
