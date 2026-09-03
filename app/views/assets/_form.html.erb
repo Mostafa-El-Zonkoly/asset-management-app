@@ -134,6 +134,36 @@
       <%= f.number_field :static_target, step: :any, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm", placeholder: "Optional" %>
     </div>
   </fieldset>
+  <fieldset class="rounded-lg border border-slate-200 p-4">
+    <legend class="px-1 text-sm font-semibold text-slate-900">Core scoring</legend>
+    <p class="mb-3 text-xs text-slate-600">Feeds the <%= link_to "Core Add ranking", core_rankings_path, class: "text-blue-600 hover:underline" %>. Scores are 0–10. Sharia override is optional (blank = derived from zaka %).</p>
+    <label class="mb-3 inline-flex items-center gap-2 text-sm text-slate-800">
+      <%= f.check_box :core_candidate, class: "rounded border-slate-300 text-blue-600 focus:ring-blue-500" %>
+      Core candidate (include in ranking — held or watchlist)
+    </label>
+    <div class="grid gap-4 sm:grid-cols-4">
+      <div>
+        <%= f.label :entry_score, "Entry (0–10)", class: "block text-sm font-medium text-slate-900" %>
+        <%= f.number_field :entry_score, step: 0.5, min: 0, max: 10, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm", placeholder: "—" %>
+      </div>
+      <div>
+        <%= f.label :quality_score, "Quality (0–10)", class: "block text-sm font-medium text-slate-900" %>
+        <%= f.number_field :quality_score, step: 0.5, min: 0, max: 10, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm", placeholder: "—" %>
+      </div>
+      <div>
+        <%= f.label :catalyst_score, "Catalyst (0–10)", class: "block text-sm font-medium text-slate-900" %>
+        <%= f.number_field :catalyst_score, step: 0.5, min: 0, max: 10, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm", placeholder: "—" %>
+      </div>
+      <div>
+        <%= f.label :sharia_score_override, "Sharia (0–10, optional)", class: "block text-sm font-medium text-slate-900" %>
+        <%= f.number_field :sharia_score_override, step: 0.5, min: 0, max: 10, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm", placeholder: "auto" %>
+      </div>
+    </div>
+    <div class="mt-4">
+      <%= f.label :catalyst_note, "Catalyst note", class: "block text-sm font-medium text-slate-900" %>
+      <%= f.text_area :catalyst_note, rows: 2, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm", placeholder: "Optional — the trigger/thesis for this name" %>
+    </div>
+  </fieldset>
   <div>
     <%= f.label :notes, class: "block text-sm font-medium text-slate-900" %>
     <%= f.text_area :notes, rows: 3, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>

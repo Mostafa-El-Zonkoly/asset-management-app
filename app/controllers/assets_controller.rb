@@ -161,7 +161,9 @@ class AssetsController < ApplicationController
       :stock_purpose_id, :sector_id, :speciality_id,
       :fund_type_id, :fund_style_id, :management_style_id, :market_index_id,
       :static_target, :zaka_percentage, :notes, :active,
-      :price_provider, :price_provider_key, :price_provider_link
+      :price_provider, :price_provider_key, :price_provider_link,
+      :core_candidate, :entry_score, :quality_score, :catalyst_score,
+      :catalyst_note, :sharia_score_override
     )
   end
 
