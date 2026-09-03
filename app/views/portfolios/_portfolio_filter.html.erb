@@ -1,0 +1,25 @@
+<%# locals: url (form action path), portfolios, selected_ids (array of ints) %>
+<%= form_with url: url, method: :get, class: "mt-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm" do %>
+  <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+    <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Filter portfolios</span>
+    <% if portfolios.empty? %>
+      <span class="text-sm text-slate-400">No portfolios.</span>
+    <% end %>
+    <% portfolios.each do |pf| %>
+      <label class="inline-flex items-center gap-1.5 text-sm text-slate-700">
+        <%= check_box_tag "portfolio_ids[]", pf.id, selected_ids.include?(pf.id),
+              id: "pf-#{pf.id}", class: "rounded border-slate-300 text-blue-600 focus:ring-blue-500" %>
+        <%= pf.name %>
+      </label>
+    <% end %>
+    <div class="ml-auto flex items-center gap-2">
+      <%= submit_tag "Apply", class: "rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700" %>
+      <% if selected_ids.any? %>
+        <%= link_to "Clear", url, class: "px-2 py-1.5 text-sm text-blue-600 hover:underline" %>
+      <% end %>
+    </div>
+  </div>
+  <% if selected_ids.any? %>
+    <p class="mt-2 text-xs text-slate-500">Showing <%= selected_ids.size %> of <%= portfolios.size %> portfolio<%= "s" if portfolios.size != 1 %>. All figures below reflect only the selected portfolios.</p>
+  <% end %>
+<% end %>

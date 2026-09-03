@@ -1,7 +1,7 @@
 <% content_for :title, "Sector analysis" %>
 <div class="flex flex-wrap items-end justify-between gap-4">
   <div>
-    <h1 class="text-2xl font-semibold text-slate-900">Sector analysis — all portfolios</h1>
+    <h1 class="text-2xl font-semibold text-slate-900">Sector analysis — <%= @selected_portfolio_ids.any? ? "selected portfolios" : "all portfolios" %></h1>
     <p class="mt-1 text-sm text-slate-600">
       Direct stock holdings with a sector assigned, aggregated across all portfolios.
       <strong>Actual %</strong> is each sector's share of total sectored assets.
@@ -9,8 +9,10 @@
       Click any column header to sort.
     </p>
   </div>
-  <%= link_to "By sector + speciality", sector_speciality_analysis_portfolios_path, class: "rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+  <%= link_to "By sector + speciality", sector_speciality_analysis_portfolios_path(portfolio_ids: @selected_portfolio_ids), class: "rounded-md border border-slate-300 px-3 py-2 text-sm" %>
 </div>
+
+<%= render "portfolios/portfolio_filter", url: sector_analysis_portfolios_path, portfolios: @portfolios, selected_ids: @selected_portfolio_ids %>
 
 <% if @reporting_currency %>
   <p class="mt-4 text-sm text-slate-600">Figures in reporting currency <span class="font-medium"><%= @reporting_currency.code %></span>.</p>
@@ -28,7 +30,7 @@
     <p class="mt-1 text-xl font-semibold"><%= number_with_precision(@sectored_total, precision: 2) %> <%= @reporting_currency&.code %></p>
   </div>
   <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-    <p class="text-xs uppercase tracking-wide text-slate-500">Included portfolios total</p>
+    <p class="text-xs uppercase tracking-wide text-slate-500"><%= @selected_portfolio_ids.any? ? "Selected portfolios total" : "Included portfolios total" %></p>
     <p class="mt-1 text-xl font-semibold"><%= number_with_precision(@included_total, precision: 2) %> <%= @reporting_currency&.code %></p>
   </div>
   <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -70,10 +72,10 @@
           <tr class="hover:bg-slate-50"
               data-vals="<%= [row[:sector].label, row[:asset_count], row[:value].to_f, actual_pct, target_pct || -99999, deviation || -99999, row[:pct_of_included].to_f, row[:gain_pct].to_f].to_json %>">
             <td class="px-4 py-3 font-medium text-slate-900">
-              <%= link_to row[:sector].label, sector_detail_portfolios_path(sector_id: row[:sector].id), class: "hover:text-blue-600 hover:underline" %>
+              <%= link_to row[:sector].label, sector_detail_portfolios_path(sector_id: row[:sector].id, portfolio_ids: @selected_portfolio_ids), class: "hover:text-blue-600 hover:underline" %>
             </td>
             <td class="px-4 py-3 text-right text-slate-600">
-              <%= link_to row[:asset_count], sector_detail_portfolios_path(sector_id: row[:sector].id), class: "text-blue-600 hover:underline" %>
+              <%= link_to row[:asset_count], sector_detail_portfolios_path(sector_id: row[:sector].id, portfolio_ids: @selected_portfolio_ids), class: "text-blue-600 hover:underline" %>
             </td>
             <td class="px-4 py-3 text-right font-mono"><%= number_with_precision(row[:value], precision: 2) %></td>
 

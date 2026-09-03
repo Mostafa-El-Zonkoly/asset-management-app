@@ -66,37 +66,41 @@ class PortfoliosController < ApplicationController
   end
 
   def sector_analysis
+    set_portfolio_filter
     @reporting_currency = Currency.base.first
     @missing_fx_codes = PortfolioStatsService.missing_fx_currency_codes_for_reporting
-    @included_total = PortfolioStatsService.combined_percent_total_value
-    @sector_rows = PortfolioStatsService.cross_portfolio_sector_analysis
+    @included_total = PortfolioStatsService.included_total_value(@selected_portfolio_ids.presence)
+    @sector_rows = PortfolioStatsService.cross_portfolio_sector_analysis(@selected_portfolio_ids.presence)
     @sectored_total = @sector_rows.sum { |r| r[:value] }
     @targets_by_sector_id = SectorTarget.all.index_by(&:sector_id)
     @total_target_pct = @targets_by_sector_id.values.sum { |t| t.target_percentage.to_d }
   end
 
   def sector_speciality_analysis
+    set_portfolio_filter
     @reporting_currency = Currency.base.first
     @missing_fx_codes = PortfolioStatsService.missing_fx_currency_codes_for_reporting
-    @included_total = PortfolioStatsService.combined_percent_total_value
-    @sector_groups = PortfolioStatsService.cross_portfolio_sector_speciality_analysis
+    @included_total = PortfolioStatsService.included_total_value(@selected_portfolio_ids.presence)
+    @sector_groups = PortfolioStatsService.cross_portfolio_sector_speciality_analysis(@selected_portfolio_ids.presence)
     @sectored_total = @sector_groups.sum { |g| g[:sector_total] }
   end
 
   def sector_detail
+    set_portfolio_filter
     @sector = Sector.find(params[:sector_id])
     @reporting_currency = Currency.base.first
-    @included_total = PortfolioStatsService.combined_percent_total_value
-    @rows = PortfolioStatsService.sector_asset_detail(@sector)
+    @included_total = PortfolioStatsService.included_total_value(@selected_portfolio_ids.presence)
+    @rows = PortfolioStatsService.sector_asset_detail(@sector, portfolio_ids: @selected_portfolio_ids.presence)
     @filter_total = @rows.sum { |r| r[:current_value] }
   end
 
   def sector_speciality_detail
+    set_portfolio_filter
     @sector = Sector.find(params[:sector_id])
     @speciality = Speciality.find(params[:speciality_id])
     @reporting_currency = Currency.base.first
-    @included_total = PortfolioStatsService.combined_percent_total_value
-    @rows = PortfolioStatsService.sector_asset_detail(@sector, speciality: @speciality)
+    @included_total = PortfolioStatsService.included_total_value(@selected_portfolio_ids.presence)
+    @rows = PortfolioStatsService.sector_asset_detail(@sector, speciality: @speciality, portfolio_ids: @selected_portfolio_ids.presence)
     @filter_total = @rows.sum { |r| r[:current_value] }
   end
 
@@ -156,6 +160,18 @@ class PortfoliosController < ApplicationController
   end
 
   private
+
+  # Portfolio filter for the cross-portfolio analysis pages. Reads params[:portfolio_ids]
+  # (array or comma string), keeps only ids the current user owns, and exposes:
+  #   @portfolios             - options for the filter control
+  #   @selected_portfolio_ids - validated selection (empty => all portfolios)
+  def set_portfolio_filter
+    @portfolios = current_user.portfolios.order(:name)
+    owned = @portfolios.ids
+    raw = params[:portfolio_ids]
+    raw = raw.to_s.split(",") if raw.is_a?(String)
+    @selected_portfolio_ids = Array(raw).map(&:to_i).uniq & owned
+  end
 
   def set_portfolio
     @portfolio = current_user.portfolios.find_by(key: params[:id]) || current_user.portfolios.find(params[:id])
