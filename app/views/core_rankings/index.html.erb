@@ -1,0 +1,195 @@
+<% content_for :title, "Core Add ranking" %>
+
+<div class="flex flex-wrap items-start justify-between gap-4">
+  <div>
+    <h1 class="text-2xl font-semibold text-slate-900">Core Add ranking</h1>
+    <p class="mt-1 max-w-3xl text-sm text-slate-600">
+      Every Core-candidate stock scored out of 100 and ranked, so you can pick where to add next.
+      Entry / Quality / Catalyst are your manual 0–10 scores; Stock / Sector / Subsector reward
+      under-weight positions in the selected scope; Sharia comes from the zaka %. The technical
+      columns are a helper only — <strong>they don't affect the score; you exclude extended names yourself.</strong>
+      Weights are configurable in
+      <%= link_to "Settings → Core scoring", edit_settings_core_scoring_setting_path, class: "text-blue-600 hover:underline" %>.
+    </p>
+  </div>
+</div>
+
+<%# --- Scope + watchlist filter --- %>
+<%= form_with url: core_rankings_path, method: :get, class: "mt-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm" do %>
+  <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+    <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">Weight scope</span>
+    <% if @portfolios.empty? %>
+      <span class="text-sm text-slate-400">No portfolios.</span>
+    <% end %>
+    <% @portfolios.each do |pf| %>
+      <label class="inline-flex items-center gap-1.5 text-sm text-slate-700">
+        <%= check_box_tag "portfolio_ids[]", pf.id, @selected_portfolio_ids.include?(pf.id), id: "cspf-#{pf.id}", class: "rounded border-slate-300 text-blue-600 focus:ring-blue-500" %>
+        <%= pf.name %>
+      </label>
+    <% end %>
+    <span class="mx-2 h-4 w-px bg-slate-200"></span>
+    <label class="inline-flex items-center gap-1.5 text-sm text-slate-700">
+      <%= check_box_tag "watchlist", "1", @include_watchlist, id: "cs-watchlist", class: "rounded border-slate-300 text-blue-600 focus:ring-blue-500" %>
+      Include watchlist (not-yet-held)
+    </label>
+    <div class="ml-auto flex items-center gap-2">
+      <%= submit_tag "Apply", class: "rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700" %>
+      <% if @selected_portfolio_ids.any? || !@include_watchlist %>
+        <%= link_to "Reset", core_rankings_path, class: "px-2 py-1.5 text-sm text-blue-600 hover:underline" %>
+      <% end %>
+    </div>
+  </div>
+  <p class="mt-2 text-xs text-slate-500">
+    Weight scope: <%= @selected_portfolio_ids.any? ? "#{@selected_portfolio_ids.size} selected portfolio(s)" : "all portfolios" %>.
+    The manual scores (Entry / Quality / Catalyst / Sharia) don't change with scope.
+  </p>
+<% end %>
+
+<details class="mt-6 rounded-xl border border-slate-200 bg-white p-4 text-sm shadow-sm">
+  <summary class="cursor-pointer font-medium text-slate-700">How each column is calculated</summary>
+  <dl class="mt-3 grid gap-x-8 gap-y-2 sm:grid-cols-2">
+    <div><dt class="font-medium text-slate-800">Score /100</dt><dd class="text-slate-600">Weighted sum of all seven factor points, normalised by the total configured weight so it always reads out of 100.</dd></div>
+    <div><dt class="font-medium text-slate-800">Entry / Quality / Catalyst</dt><dd class="text-slate-600">Your manual 0–10 score for the stock × that factor's weight. Blank counts as 0.</dd></div>
+    <div><dt class="font-medium text-slate-800">Sharia</dt><dd class="text-slate-600">Derived from the asset's zaka % (clean ⇒ full points, dirty ⇒ zero) unless you set a manual override. The small <code>z=</code> shows the zaka %.</dd></div>
+    <div><dt class="font-medium text-slate-800">Balance</dt><dd class="text-slate-600">Stock + Sector + Subsector points combined. Each gives full points when that weight is at/below its “full” threshold and zero at/above its “cap” — the more under-weight, the more points.</dd></div>
+    <div><dt class="font-medium text-slate-800">Weights now</dt><dd class="text-slate-600">Current weight of the stock (S), its sector (Sec) and subsector (Sub) within the selected scope — share of the “stocks part” (direct-stock value).</dd></div>
+    <div><dt class="font-medium text-slate-800">Off high</dt><dd class="text-slate-600">How far the latest price sits below its 52-week high (bigger = cheaper). Turns red with an “Extended” tag when it's within your configured distance of the high.</dd></div>
+    <div><dt class="font-medium text-slate-800">vs MA</dt><dd class="text-slate-600">Latest price versus its moving average (+ = above the average).</dd></div>
+    <div><dt class="font-medium text-slate-800">Off high · vs MA · Extended</dt><dd class="text-slate-600">Technical helper only — these do <strong>not</strong> affect the score or the ranking; they're there so you can exclude extended names yourself.</dd></div>
+  </dl>
+</details>
+
+<% if @rows.empty? %>
+  <div class="mt-8 rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
+    <p class="text-slate-600">No Core candidates yet.</p>
+    <p class="mt-1 text-sm text-slate-500">Mark a stock as a <strong>Core candidate</strong> on its edit page (held or watchlist) to see it ranked here.</p>
+  </div>
+<% else %>
+  <div class="mt-6 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+    <table id="core-table" class="w-full min-w-[72rem] text-left text-sm">
+      <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+        <tr>
+          <th class="px-3 py-3 text-right">#</th>
+          <th class="cursor-pointer select-none px-3 py-3 hover:bg-slate-100" data-col="0" data-type="string">Stock <span class="sort-icon text-slate-300">↕</span></th>
+          <th class="px-3 py-3">Sector / Subsector</th>
+          <th class="cursor-pointer select-none px-3 py-3 text-right hover:bg-slate-100" data-col="1" data-type="number">Score /100 <span class="sort-icon text-slate-300">↕</span></th>
+          <th class="cursor-pointer select-none px-3 py-3 text-right hover:bg-slate-100" data-col="2" data-type="number">Entry <span class="sort-icon text-slate-300">↕</span></th>
+          <th class="cursor-pointer select-none px-3 py-3 text-right hover:bg-slate-100" data-col="3" data-type="number">Quality <span class="sort-icon text-slate-300">↕</span></th>
+          <th class="cursor-pointer select-none px-3 py-3 text-right hover:bg-slate-100" data-col="4" data-type="number">Catalyst <span class="sort-icon text-slate-300">↕</span></th>
+          <th class="cursor-pointer select-none px-3 py-3 text-right hover:bg-slate-100" data-col="5" data-type="number">Sharia <span class="sort-icon text-slate-300">↕</span></th>
+          <th class="cursor-pointer select-none px-3 py-3 text-right hover:bg-slate-100" data-col="6" data-type="number" title="Stock + Sector + Subsector balance points">Balance <span class="sort-icon text-slate-300">↕</span></th>
+          <th class="px-3 py-3 text-right" title="Current weight of this stock / its sector / its subsector, within the selected scope">Weights now</th>
+          <th class="cursor-pointer select-none px-3 py-3 text-right hover:bg-slate-100" data-col="7" data-type="number" title="Distance below the 52-week high (bigger = cheaper)">Off high <span class="sort-icon text-slate-300">↕</span></th>
+          <th class="px-3 py-3 text-right" title="Price vs the moving average">vs MA</th>
+          <th class="px-3 py-3"></th>
+        </tr>
+      </thead>
+      <tbody id="core-tbody" class="divide-y divide-slate-100">
+        <% @rows.each_with_index do |r, i| %>
+          <% a = r.asset %>
+          <% fid = "cs_#{a.id}" %>
+          <% score_url = core_ranking_scores_path(asset_id: a.id, portfolio_ids: @selected_portfolio_ids, watchlist: (@include_watchlist ? nil : "0")) %>
+          <% balance_pts = (r.factors[:stock] + r.factors[:sector] + r.factors[:subsector]) %>
+          <% off = r.technical[:off_high_pct] %>
+          <% above = r.technical[:above_ma_pct] %>
+          <% total = r.total.to_f %>
+          <% bar_hex = total >= 66 ? "#10b981" : (total >= 40 ? "#3b82f6" : "#94a3b8") %>
+          <tr class="align-middle hover:bg-slate-50"
+              data-vals="<%= [a.code, total, a.entry_score.to_f, a.quality_score.to_f, a.catalyst_score.to_f, r.factors[:sharia].to_f, balance_pts.to_f, (off ? off.to_f : -1)].to_json %>">
+            <td class="px-3 py-2 text-right tabular-nums text-slate-400"><%= i + 1 %></td>
+            <td class="px-3 py-2">
+              <%= form_with url: score_url, method: :patch, id: fid do %><% end %>
+              <div class="font-medium text-slate-900"><%= a.code %></div>
+              <div class="flex items-center gap-1.5 text-xs text-slate-500">
+                <%= a.name %>
+                <% if r.held %>
+                  <span class="rounded bg-emerald-50 px-1 text-[10px] font-medium text-emerald-700">Held</span>
+                <% else %>
+                  <span class="rounded bg-amber-50 px-1 text-[10px] font-medium text-amber-700">Watch</span>
+                <% end %>
+              </div>
+            </td>
+            <td class="px-3 py-2 text-xs text-slate-600">
+              <%= a.sector&.label || "—" %>
+              <% if a.speciality %><span class="text-slate-400">· <%= a.speciality.label %></span><% end %>
+            </td>
+            <td class="px-3 py-2 text-right">
+              <div class="flex items-center justify-end gap-2">
+                <div class="h-2 w-20 overflow-hidden rounded-full bg-slate-100">
+                  <div class="h-2 rounded-full" style="width: <%= [total, 100].min %>%; background-color: <%= bar_hex %>;"></div>
+                </div>
+                <span class="w-10 text-right font-mono font-semibold text-slate-800"><%= number_with_precision(total, precision: 1) %></span>
+              </div>
+            </td>
+            <td class="px-3 py-2 text-right">
+              <%= number_field_tag "asset[entry_score]", a.entry_score, step: "0.5", min: 0, max: 10, form: fid, class: "w-14 rounded-md border border-slate-300 px-1.5 py-1 text-right text-sm tabular-nums" %>
+            </td>
+            <td class="px-3 py-2 text-right">
+              <%= number_field_tag "asset[quality_score]", a.quality_score, step: "0.5", min: 0, max: 10, form: fid, class: "w-14 rounded-md border border-slate-300 px-1.5 py-1 text-right text-sm tabular-nums" %>
+            </td>
+            <td class="px-3 py-2 text-right">
+              <%= number_field_tag "asset[catalyst_score]", a.catalyst_score, step: "0.5", min: 0, max: 10, form: fid, class: "w-14 rounded-md border border-slate-300 px-1.5 py-1 text-right text-sm tabular-nums" %>
+            </td>
+            <td class="px-3 py-2 text-right">
+              <div class="flex items-center justify-end gap-1">
+                <%= number_field_tag "asset[sharia_score_override]", a.sharia_score_override, step: "0.5", min: 0, max: 10, form: fid, placeholder: "auto", class: "w-14 rounded-md border border-slate-300 px-1.5 py-1 text-right text-sm tabular-nums" %>
+              </div>
+              <div class="text-[10px] text-slate-400">z=<%= number_with_precision(a.zaka_percentage, precision: 1) %>%</div>
+            </td>
+            <td class="px-3 py-2 text-right font-mono text-slate-600"><%= number_with_precision(balance_pts, precision: 1) %></td>
+            <td class="px-3 py-2 text-right text-xs text-slate-500">
+              <div>S <%= number_with_precision(r.weights_pct[:stock], precision: 1) %>%</div>
+              <div>Sec <%= number_with_precision(r.weights_pct[:sector], precision: 1) %>%</div>
+              <div>Sub <%= number_with_precision(r.weights_pct[:subsector], precision: 1) %>%</div>
+            </td>
+            <td class="px-3 py-2 text-right font-mono text-xs">
+              <% if off %>
+                <span class="<%= r.technical[:extended] ? 'text-red-600 font-semibold' : 'text-slate-600' %>">−<%= number_with_precision(off, precision: 1) %>%</span>
+                <% if r.technical[:extended] %><div class="text-[10px] font-semibold text-red-600">Extended</div><% end %>
+              <% else %>
+                <span class="text-slate-300">—</span>
+              <% end %>
+            </td>
+            <td class="px-3 py-2 text-right font-mono text-xs text-slate-500">
+              <%= above ? "#{above >= 0 ? '+' : ''}#{number_with_precision(above, precision: 1)}%" : "—" %>
+            </td>
+            <td class="px-3 py-2 text-right">
+              <%= button_tag "Save", form: fid, class: "rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700" %>
+            </td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    (function () {
+      var tbody = document.getElementById("core-tbody");
+      var ths   = document.querySelectorAll("#core-table thead th[data-col]");
+      var sortCol = null, sortAsc = true;
+      ths.forEach(function (th) {
+        th.addEventListener("click", function () {
+          var col  = parseInt(th.dataset.col, 10);
+          var type = th.dataset.type;
+          sortAsc  = (sortCol === col) ? !sortAsc : (type === "string");
+          sortCol  = col;
+          ths.forEach(function (h) {
+            h.querySelector(".sort-icon").textContent = "↕";
+            h.querySelector(".sort-icon").className = "sort-icon text-slate-300";
+          });
+          th.querySelector(".sort-icon").textContent = sortAsc ? "↑" : "↓";
+          th.querySelector(".sort-icon").className = "sort-icon text-slate-700";
+          var rows = Array.from(tbody.querySelectorAll("tr"));
+          rows.sort(function (a, b) {
+            var av = JSON.parse(a.dataset.vals)[col];
+            var bv = JSON.parse(b.dataset.vals)[col];
+            if (type === "number") { av = parseFloat(av) || 0; bv = parseFloat(bv) || 0; }
+            else { av = String(av).toLowerCase(); bv = String(bv).toLowerCase(); }
+            return av < bv ? (sortAsc ? -1 : 1) : av > bv ? (sortAsc ? 1 : -1) : 0;
+          });
+          rows.forEach(function (r) { tbody.appendChild(r); });
+        });
+      });
+    })();
+  </script>
+<% end %>

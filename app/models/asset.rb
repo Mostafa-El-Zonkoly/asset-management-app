@@ -21,6 +21,8 @@ class Asset < ApplicationRecord
   has_many :transfer_to_transactions, class_name: "PortfolioTransaction", foreign_key: :transfer_to_wallet_id, dependent: :restrict_with_error, inverse_of: :transfer_to_wallet
 
   validates :name, :code, presence: true
+  validates :entry_score, :quality_score, :catalyst_score, :sharia_score_override,
+    numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 10 }, allow_nil: true
   validates :code, uniqueness: { case_sensitive: false }
   validates :zaka_percentage,
     numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }
@@ -34,6 +36,7 @@ class Asset < ApplicationRecord
   scope :active, -> { where(active: true) }
   scope :wallets, -> { joins(:asset_type).where(asset_types: { key: "wallet" }) }
   scope :direct_stock, -> { joins(:asset_type).where(asset_types: { key: "direct_stock" }) }
+  scope :core_candidates, -> { where(core_candidate: true) }
 
   def wallet?
     asset_type&.key == "wallet"

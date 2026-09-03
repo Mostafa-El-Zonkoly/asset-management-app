@@ -1,0 +1,83 @@
+<% content_for :title, "Core scoring settings" %>
+<h1 class="mb-2 text-2xl font-semibold">Core scoring settings</h1>
+<p class="mb-6 max-w-2xl text-sm text-slate-600">
+  Tune the <%= link_to "Core Add ranking", core_rankings_path, class: "text-blue-600 hover:underline" %>.
+  Weights are relative (they don't have to add up to 100 — the score is normalised to /100).
+  Balance bands give full points at/below the “full” weight and zero at/above the “cap”.
+</p>
+
+<%= form_with model: @setting, url: settings_core_scoring_setting_path, method: :patch, class: "max-w-3xl space-y-6" do |f| %>
+  <% if @setting.errors.any? %>
+    <div class="rounded-md bg-red-50 p-3 text-sm text-red-800"><%= @setting.errors.full_messages.to_sentence %></div>
+  <% end %>
+
+  <fieldset class="rounded-lg border border-slate-200 p-4">
+    <legend class="px-1 text-sm font-semibold text-slate-900">Factor weights</legend>
+    <div class="grid gap-4 sm:grid-cols-3">
+      <% { weight_entry: "Entry", weight_quality: "Quality", weight_catalyst: "Catalyst", weight_stock: "Stock balance", weight_sector: "Sector balance", weight_subsector: "Subsector balance", weight_sharia: "Sharia" }.each do |field, label| %>
+        <div>
+          <%= f.label field, label, class: "block text-sm font-medium text-slate-900" %>
+          <%= f.number_field field, step: :any, min: 0, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+        </div>
+      <% end %>
+      <div class="flex items-end text-xs text-slate-500">Current total: <span class="ml-1 font-mono"><%= number_with_precision(@setting.total_weight, precision: 1) %></span></div>
+    </div>
+  </fieldset>
+
+  <fieldset class="rounded-lg border border-slate-200 p-4">
+    <legend class="px-1 text-sm font-semibold text-slate-900">Weight-balance bands (% of the stocks part)</legend>
+    <p class="mb-3 text-xs text-slate-600">Full points at/below “full”, zero at/above “cap”. Lower current weight ⇒ higher add-score.</p>
+    <div class="grid gap-4 sm:grid-cols-2">
+      <% { stock: "Stock", sector: "Sector", subsector: "Subsector" }.each do |key, label| %>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <%= f.label "#{key}_full_pct", "#{label} full %", class: "block text-sm font-medium text-slate-900" %>
+            <%= f.number_field "#{key}_full_pct", step: :any, min: 0, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+          </div>
+          <div>
+            <%= f.label "#{key}_cap_pct", "#{label} cap %", class: "block text-sm font-medium text-slate-900" %>
+            <%= f.number_field "#{key}_cap_pct", step: :any, min: 0, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </fieldset>
+
+  <fieldset class="rounded-lg border border-slate-200 p-4">
+    <legend class="px-1 text-sm font-semibold text-slate-900">Sharia mapping (from zaka %)</legend>
+    <p class="mb-3 text-xs text-slate-600">Full points at/below “clean”, zero at/above “dirty”. Overridden per asset when a manual Sharia score is set.</p>
+    <div class="grid gap-4 sm:grid-cols-2">
+      <div>
+        <%= f.label :sharia_clean_pct, "Clean zaka % (full)", class: "block text-sm font-medium text-slate-900" %>
+        <%= f.number_field :sharia_clean_pct, step: :any, min: 0, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+      </div>
+      <div>
+        <%= f.label :sharia_dirty_pct, "Dirty zaka % (zero)", class: "block text-sm font-medium text-slate-900" %>
+        <%= f.number_field :sharia_dirty_pct, step: :any, min: 0, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+      </div>
+    </div>
+  </fieldset>
+
+  <fieldset class="rounded-lg border border-slate-200 p-4">
+    <legend class="px-1 text-sm font-semibold text-slate-900">Technical helper (does not affect score)</legend>
+    <div class="grid gap-4 sm:grid-cols-3">
+      <div>
+        <%= f.label :extended_near_high_pct, "“Extended” if within % of 52w high", class: "block text-sm font-medium text-slate-900" %>
+        <%= f.number_field :extended_near_high_pct, step: :any, min: 0, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+      </div>
+      <div>
+        <%= f.label :extended_above_ma_pct, "“Extended” if above MA by %", class: "block text-sm font-medium text-slate-900" %>
+        <%= f.number_field :extended_above_ma_pct, step: :any, min: 0, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+      </div>
+      <div>
+        <%= f.label :ma_period_days, "Moving-average days", class: "block text-sm font-medium text-slate-900" %>
+        <%= f.number_field :ma_period_days, step: 1, min: 2, max: 400, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+      </div>
+    </div>
+  </fieldset>
+
+  <div class="flex gap-2">
+    <%= f.submit "Save", class: "rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700" %>
+    <%= link_to "Back to ranking", core_rankings_path, class: "ml-2 text-sm text-slate-600 hover:text-slate-900" %>
+  </div>
+<% end %>

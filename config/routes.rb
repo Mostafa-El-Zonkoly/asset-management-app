@@ -48,6 +48,9 @@ Rails.application.routes.draw do
     end
   end
 
+  resources :core_rankings, only: [:index]
+  patch "core_rankings/:asset_id/scores", to: "core_rankings#update_scores", as: :core_ranking_scores
+
   resources :prices, only: %i[index create] do
     collection do
       post :fetch
@@ -57,6 +60,7 @@ Rails.application.routes.draw do
   namespace :settings do
     resource :free_cash_target, only: %i[edit update]
     resource :zaka_setting, only: %i[edit update]
+    resource :core_scoring_setting, only: %i[edit update]
     resources :categories, except: :show
     resources :currencies do
       member do

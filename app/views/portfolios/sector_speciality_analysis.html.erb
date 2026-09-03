@@ -41,6 +41,19 @@
   </div>
 </div>
 
+<details class="mt-6 rounded-xl border border-slate-200 bg-white p-4 text-sm shadow-sm">
+  <summary class="cursor-pointer font-medium text-slate-700">How each column is calculated</summary>
+  <dl class="mt-3 grid gap-x-8 gap-y-2 sm:grid-cols-2">
+    <div><dt class="font-medium text-slate-800">Sector header — value / % of sectored / % overall / % of included</dt><dd class="text-slate-600">Sector totals: its holdings' value; share of sectored value in the filter; the same share across all portfolios; and its share of the included (or selected) portfolios' total book.</dd></div>
+    <div><dt class="font-medium text-slate-800">Assets</dt><dd class="text-slate-600">Count of distinct direct-stock assets in the speciality, within the current filter.</dd></div>
+    <div><dt class="font-medium text-slate-800">Value</dt><dd class="text-slate-600">Sum of current value of the speciality's holdings, in the reporting currency.</dd></div>
+    <div><dt class="font-medium text-slate-800">% of sector</dt><dd class="text-slate-600">Speciality value ÷ its parent sector's total. Sums to 100% within each sector.</dd></div>
+    <div><dt class="font-medium text-slate-800">% of sectored</dt><dd class="text-slate-600">Speciality value ÷ total sectored value, within the current filter.</dd></div>
+    <div><dt class="font-medium text-slate-800">% overall</dt><dd class="text-slate-600">Same share but across all portfolios, ignoring the filter — equals % of sectored when nothing is filtered.</dd></div>
+    <div><dt class="font-medium text-slate-800">% of included</dt><dd class="text-slate-600">Speciality value ÷ total value of the included (or selected) portfolios — share of the whole book.</dd></div>
+  </dl>
+</details>
+
 <% if @sector_groups.blank? %>
   <p class="mt-8 text-slate-500">No direct stock holdings with a sector assigned were found.</p>
 <% else %>
