@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 class ManagementStyle < ApplicationRecord
+  include TenantScoped
   include LookupRow
 
   has_many :assets, dependent: :restrict_with_error

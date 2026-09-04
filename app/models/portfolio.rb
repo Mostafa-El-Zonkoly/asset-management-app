@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 class Portfolio < ApplicationRecord
+  include TenantScoped
   belongs_to :user
 
   has_many :holdings, dependent: :destroy
@@ -19,7 +20,7 @@ class Portfolio < ApplicationRecord
   enum :purification_method, { aaoifi: "aaoifi", sp: "sp" }, default: "aaoifi"
 
   validates :name, presence: true
-  validates :key, uniqueness: { allow_blank: true },
+  validates :key, uniqueness: { allow_blank: true, scope: :user_id },
                   format: { with: /\A[a-z0-9_-]+\z/, message: "only lowercase letters, numbers, hyphens, and underscores", allow_blank: true }
   validate :whole_portfolio_target_matches_type
 

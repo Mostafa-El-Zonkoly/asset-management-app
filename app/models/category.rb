@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 class Category < ApplicationRecord
+  include TenantScoped
   belongs_to :category_type
   has_many :assets, dependent: :restrict_with_error
   has_many :portfolio_targets, dependent: :destroy

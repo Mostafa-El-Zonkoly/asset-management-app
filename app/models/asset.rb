@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 class Asset < ApplicationRecord
+  include TenantScoped
   PRICE_PROVIDERS = %w[hermes azimut].freeze
 
   belongs_to :category
@@ -23,7 +24,7 @@ class Asset < ApplicationRecord
   validates :name, :code, presence: true
   validates :entry_score, :quality_score, :catalyst_score, :sharia_score_override,
     numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 10 }, allow_nil: true
-  validates :code, uniqueness: { case_sensitive: false }
+  validates :code, uniqueness: { case_sensitive: false, scope: :user_id }
   validates :zaka_percentage,
     numericality: { greater_than_or_equal_to: 0, less_than_or_equal_to: 100 }
   validates :price_provider, inclusion: { in: PRICE_PROVIDERS }, allow_blank: true

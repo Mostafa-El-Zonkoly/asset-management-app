@@ -3,6 +3,7 @@
 # Singleton-style config for the Core Add ranking: factor weights, weight-balance
 # bands, sharia mapping, and technical "extended" helper thresholds.
 class CoreScoringSetting < ApplicationRecord
+  include TenantScoped
   WEIGHT_FIELDS = %i[
     weight_entry weight_quality weight_catalyst
     weight_stock weight_sector weight_subsector weight_sharia

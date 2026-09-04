@@ -108,7 +108,9 @@
       <%= f.number_field :target_amount, step: :any, placeholder: "Amount", class: "rounded-md border border-slate-300 px-2 py-2 text-sm" %>
       <%= f.submit "Add target", class: "rounded-md bg-slate-800 px-3 py-2 text-sm text-white" %>
     <% end %>
-    <%= render "category_targets_table", targets: @targets, allocation: @allocation, reporting_currency: @reporting_currency, portfolio: @portfolio %>
+    <div class="overflow-x-auto">
+      <%= render "category_targets_table", targets: @targets, allocation: @allocation, reporting_currency: @reporting_currency, portfolio: @portfolio %>
+    </div>
 
     <h3 class="mt-8 text-sm font-semibold text-slate-900">By mutual fund management style</h3>
     <p class="mt-1 text-xs text-slate-600">Targets apply to mutual fund holdings only (passive vs active). Mix % is each style’s share of total non-wallet portfolio value.</p>
@@ -119,7 +121,9 @@
       <%= f.number_field :target_amount, step: :any, placeholder: "Amount", class: "rounded-md border border-slate-300 px-2 py-2 text-sm" %>
       <%= f.submit "Add target", class: "rounded-md bg-slate-800 px-3 py-2 text-sm text-white" %>
     <% end %>
-    <%= render "management_style_targets_table", targets: @ms_targets, allocation: @ms_allocation, reporting_currency: @reporting_currency, portfolio: @portfolio %>
+    <div class="overflow-x-auto">
+      <%= render "management_style_targets_table", targets: @ms_targets, allocation: @ms_allocation, reporting_currency: @reporting_currency, portfolio: @portfolio %>
+    </div>
   </div>
 </div>
 
@@ -136,6 +140,7 @@
       Zero-quantity rows omitted.
     </span>
   </div>
+  <div class="overflow-x-auto">
   <table data-controller="sortable-table" class="w-full min-w-[64rem] text-left text-sm">
     <thead class="bg-slate-50 text-xs uppercase text-slate-500">
       <tr>
@@ -194,4 +199,5 @@
       <% end %>
     </tbody>
   </table>
+  </div>
 </div>
