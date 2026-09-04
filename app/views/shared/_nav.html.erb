@@ -38,10 +38,17 @@
 
 <header class="app-header">
   <div class="container mx-auto px-4">
-    <div class="app-header__inner" style="display:flex;align-items:center;min-height:3.5rem;gap:1rem">
+    <div class="app-header__inner" style="display:flex;align-items:center;min-height:3.5rem;gap:1rem" data-controller="nav-menus">
       <%= link_to "Portfolio", root_path, class: "app-header__brand" %>
 
-      <nav class="app-header__nav" style="display:flex;flex-direction:row;align-items:center;flex:1;min-width:0" aria-label="Main" data-controller="nav-menus">
+      <button type="button" class="app-header__burger" aria-label="Toggle menu" aria-expanded="false"
+              data-nav-menus-target="burger" data-action="click->nav-menus#toggleMobile">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+      </button>
+
+      <nav class="app-header__nav" aria-label="Main" data-nav-menus-target="nav">
         <%= link_to "Dashboard", root_path, class: "app-header__link" %>
         <%= render "shared/nav_menu", label: "Portfolios", items: portfolio_items %>
         <%= render "shared/nav_menu", label: "Sectors", items: sector_items %>

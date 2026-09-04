@@ -16,8 +16,7 @@
   <div class="<%= panel_class %>"
        data-nav-menus-target="panel"
        role="menu"
-       hidden
-       style="position:absolute;top:100%;<%= panel_side %>z-index:50;margin-top:0.25rem;min-width:11rem;background:#fff;border:1px solid #e2e8f0;border-radius:0.5rem;padding:0.25rem 0;box-shadow:0 10px 15px -3px rgb(0 0 0 / 0.1)">
+       hidden>
     <% items.each do |item| %>
       <%= link_to item[:label], item[:path], class: "nav-menu-item", role: "menuitem" %>
     <% end %>

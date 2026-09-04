@@ -1,7 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static targets = ["wrapper", "button", "panel"]
+  static targets = ["wrapper", "button", "panel", "nav", "burger"]
 
   connect() {
     this.boundCloseOnOutside = this.closeOnOutsideClick.bind(this)
@@ -25,6 +25,16 @@ export default class extends Controller {
     if (!isOpen) {
       this.open(panel, button)
     }
+  }
+
+  toggleMobile(event) {
+    event.stopPropagation()
+    if (!this.hasNavTarget) return
+    const open = this.navTarget.classList.toggle("app-header__nav--open")
+    if (this.hasBurgerTarget) {
+      this.burgerTarget.setAttribute("aria-expanded", open ? "true" : "false")
+    }
+    if (!open) this.closeAll()
   }
 
   open(panel, button) {
