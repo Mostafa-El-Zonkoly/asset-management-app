@@ -4,6 +4,8 @@
 # The app produces the list; the amount is entered manually and the money is
 # computed outside the app.
 class PurificationEntry < ApplicationRecord
+  include TenantScoped
+  tenant_through :portfolio
   METHODS  = %w[aaoifi sp].freeze
   STATUSES = %w[pending done not_required].freeze
 

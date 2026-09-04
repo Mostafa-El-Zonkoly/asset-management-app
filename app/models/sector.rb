@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 class Sector < ApplicationRecord
+  include TenantScoped
   include LookupRow
 
   has_many :specialities, dependent: :restrict_with_error

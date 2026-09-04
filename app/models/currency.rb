@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 class Currency < ApplicationRecord
+  include TenantScoped
   has_many :market_indices, dependent: :restrict_with_error
   has_many :assets, dependent: :restrict_with_error
   has_many :holdings, dependent: :restrict_with_error

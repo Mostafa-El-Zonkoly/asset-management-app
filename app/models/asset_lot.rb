@@ -4,6 +4,8 @@
 # Its remaining_quantity is decremented as later sells consume it via
 # LotClosures. remaining_quantity == 0 means the lot is fully closed.
 class AssetLot < ApplicationRecord
+  include TenantScoped
+  tenant_through :portfolio
   belongs_to :portfolio
   belongs_to :asset
   belongs_to :currency

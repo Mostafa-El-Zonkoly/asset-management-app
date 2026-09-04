@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 class PortfolioManagementStyleTarget < ApplicationRecord
+  include TenantScoped
+  tenant_through :portfolio
   belongs_to :portfolio
   belongs_to :management_style
   belongs_to :target_type

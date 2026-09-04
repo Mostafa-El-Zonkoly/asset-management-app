@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 class Asset < ApplicationRecord
+  include TenantScoped
   PRICE_PROVIDERS = %w[hermes azimut].freeze
 
   belongs_to :category

@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 class Holding < ApplicationRecord
+  include TenantScoped
+  tenant_through :portfolio
   belongs_to :portfolio
   belongs_to :asset
   belongs_to :currency

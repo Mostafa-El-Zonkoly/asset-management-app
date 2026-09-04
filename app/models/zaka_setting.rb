@@ -2,6 +2,7 @@
 
 # Singleton-style row: nisab reference, suggested rate, payment interval for overdue warnings.
 class ZakaSetting < ApplicationRecord
+  include TenantScoped
   belongs_to :nisab_asset, class_name: "Asset", optional: true
 
   validates :rate_percentage,

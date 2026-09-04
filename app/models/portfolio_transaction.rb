@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 class PortfolioTransaction < ApplicationRecord
+  include TenantScoped
+  tenant_through :portfolio, :asset
   self.table_name = "transactions"
 
   # Types for which portfolio_id may be changed after posting (holdings / attribution only).

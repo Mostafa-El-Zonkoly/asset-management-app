@@ -31,10 +31,14 @@
   { label: "Lookups", path: settings_lookups_path },
   { label: "Free cash target", path: edit_settings_free_cash_target_path },
   { label: "Zakaa settings", path: edit_settings_zaka_setting_path },
-  { label: "Core scoring", path: edit_settings_core_scoring_setting_path },
-  { label: "Export data", path: export_backup_path },
-  { label: "Import data", path: import_backup_path }
+  { label: "Core scoring", path: edit_settings_core_scoring_setting_path }
 ] %>
+<% if current_user&.admin? %>
+  <% settings_items += [
+    { label: "Export data", path: export_backup_path },
+    { label: "Import data", path: import_backup_path }
+  ] %>
+<% end %>
 
 <header class="app-header">
   <div class="container mx-auto px-4">

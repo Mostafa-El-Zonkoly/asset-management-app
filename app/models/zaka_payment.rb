@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 class ZakaPayment < ApplicationRecord
+  include TenantScoped
   belongs_to :currency
 
   validates :paid_on, presence: true

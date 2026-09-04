@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 class IndexPrice < ApplicationRecord
+  include TenantScoped
+  tenant_through :market_index
   belongs_to :market_index
   belongs_to :price_source
 

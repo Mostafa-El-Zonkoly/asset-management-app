@@ -1,6 +1,7 @@
 require "open3"
 
 class BackupsController < ApplicationController
+  before_action :require_admin
   # Common pg binary locations on macOS (Homebrew, Postgres.app, libpq)
   PG_BIN_DIRS = %w[
     /usr/local/Cellar/libpq/18.4/bin
@@ -37,6 +38,12 @@ class BackupsController < ApplicationController
   end
 
   private
+
+  def require_admin
+    return if current_user&.admin?
+
+    redirect_to root_path, alert: "Not authorized."
+  end
 
   def db_cfg
     ActiveRecord::Base.connection_db_config.configuration_hash
