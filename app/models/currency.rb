@@ -8,7 +8,7 @@ class Currency < ApplicationRecord
   has_many :exchange_rates_as_quote, class_name: "ExchangeRate", foreign_key: :currency_id, dependent: :destroy
   has_many :exchange_rates_as_base, class_name: "ExchangeRate", foreign_key: :base_currency_id, dependent: :destroy
 
-  validates :code, presence: true, uniqueness: { case_sensitive: false }
+  validates :code, presence: true, uniqueness: { case_sensitive: false, scope: :user_id }
   validates :name, :symbol, presence: true
   validate :only_one_base_currency
 

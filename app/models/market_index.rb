@@ -7,5 +7,5 @@ class MarketIndex < ApplicationRecord
   has_many :index_prices, dependent: :destroy
 
   validates :name, :code, presence: true
-  validates :code, uniqueness: { case_sensitive: false }
+  validates :code, uniqueness: { case_sensitive: false, scope: :user_id }
 end
