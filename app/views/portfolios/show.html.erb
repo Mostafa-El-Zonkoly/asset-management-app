@@ -145,14 +145,14 @@
     <thead class="bg-slate-50 text-xs uppercase text-slate-500">
       <tr>
         <th class="px-4 py-2">Asset</th>
-        <th class="text-right">Quantity</th>
+        <th class="text-right">Current value</th>
+        <th class="text-right">Unrealised</th>
         <th class="text-right">Average price</th>
+        <th class="text-right">Quantity</th>
         <th class="text-right">Purchase value</th>
         <th class="text-right">Current price</th>
-        <th class="text-right">Current value</th>
         <th class="text-right">FX gain</th>
         <th class="text-right">Price gain</th>
-        <th class="text-right">Unrealised</th>
         <th class="text-right">Realised</th>
         <th class="text-right">Total</th>
       </tr>
@@ -166,15 +166,18 @@
           <% is_foreign = h.asset.currency_id != @reporting_currency&.id %>
           <tr class="border-t border-slate-100">
             <td class="px-4 py-2"><%= link_to h.asset.code, h.asset, class: "text-blue-600 hover:underline" %></td>
-            <td class="text-right tabular-nums" data-sort-value="<%= h.quantity %>"><%= number_with_precision(h.quantity, precision: 4) %></td>
+            <td class="text-right tabular-nums" data-sort-value="<%= r.current_value %>"><%= number_with_precision(r.current_value, precision: 2) %></td>
+            <td class="text-right tabular-nums" data-sort-value="<%= r.unrealised_gain_pct %>">
+              <%= format_pnl_value_and_percent(r.unrealised_gain, r.unrealised_gain_pct) %>
+            </td>
             <td class="text-right tabular-nums" data-sort-value="<%= h.average_buy_price&.to_d || 0 %>">
               <%= h.average_buy_price ? "#{number_with_precision(h.average_buy_price, precision: 4)} #{ccy}" : "—" %>
             </td>
+            <td class="text-right tabular-nums" data-sort-value="<%= h.quantity %>"><%= number_with_precision(h.quantity, precision: 4) %></td>
             <td class="text-right tabular-nums" data-sort-value="<%= r.cost_basis %>"><%= number_with_precision(r.cost_basis, precision: 2) %></td>
             <td class="text-right tabular-nums" data-sort-value="<%= r.current_price&.to_d || 0 %>">
               <%= r.current_price ? "#{number_with_precision(r.current_price, precision: 4)} #{ccy}" : "—" %>
             </td>
-            <td class="text-right tabular-nums" data-sort-value="<%= r.current_value %>"><%= number_with_precision(r.current_value, precision: 2) %></td>
             <td class="text-right tabular-nums" data-sort-value="<%= r.fx_gain_pct %>">
               <% if is_foreign %>
                 <%= format_pnl_value_and_percent(r.fx_gain, r.fx_gain_pct) %>
@@ -184,9 +187,6 @@
             </td>
             <td class="text-right tabular-nums" data-sort-value="<%= r.price_gain_pct %>">
               <%= format_pnl_value_and_percent(r.price_gain, r.price_gain_pct) %>
-            </td>
-            <td class="text-right tabular-nums" data-sort-value="<%= r.unrealised_gain_pct %>">
-              <%= format_pnl_value_and_percent(r.unrealised_gain, r.unrealised_gain_pct) %>
             </td>
             <td class="text-right tabular-nums" data-sort-value="<%= r.realised_gain_pct %>">
               <%= format_pnl_value_and_percent(r.realised_gain, r.realised_gain_pct) %>
