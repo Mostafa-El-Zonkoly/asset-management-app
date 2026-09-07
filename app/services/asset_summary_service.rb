@@ -14,17 +14,18 @@ class AssetSummaryService
   )
 
   class << self
-    def call
-      new.call
+    def call(asset_type_key: nil)
+      new.call(asset_type_key: asset_type_key)
     end
   end
 
-  def call
+  def call(asset_type_key: nil)
     reporting = Currency.base.first
     holdings_scope = Holding.joins(asset: :asset_type).merge(Asset.active).where("holdings.quantity > 0")
       .where.not(asset_types: { key: "wallet" })
       .includes(:portfolio, asset: %i[asset_type currency stock_purpose sector speciality
                                         fund_type fund_style management_style market_index])
+    holdings_scope = holdings_scope.where(asset_types: { key: asset_type_key }) if asset_type_key.present?
     grouped = holdings_scope.group_by(&:asset_id)
 
     aggregates =

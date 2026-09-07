@@ -7,7 +7,10 @@ class AssetsController < ApplicationController
   before_action :set_asset, only: %i[show edit update destroy fetch_price]
 
   def summary
-    data = AssetSummaryService.call
+    @asset_types = AssetType.where.not(key: "wallet").order(:position)
+    @selected_type = params[:type].presence
+    @selected_type = nil unless @asset_types.any? { |t| t.key == @selected_type }
+    data = AssetSummaryService.call(asset_type_key: @selected_type)
     @rows = data[:rows]
     @reporting_currency = data[:reporting_currency]
   end

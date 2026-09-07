@@ -7,6 +7,20 @@
   <%= link_to "All assets", assets_path, class: "rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50" %>
 </div>
 
+<%= form_with url: summary_assets_path, method: :get, class: "mt-4 flex flex-wrap items-end gap-3" do %>
+  <div>
+    <label class="block text-xs font-medium uppercase text-slate-500">Type</label>
+    <%= select_tag :type,
+          options_for_select([["All types", ""]] + @asset_types.map { |t| [t.label, t.key] }, @selected_type),
+          onchange: "this.form.requestSubmit()",
+          class: "mt-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm" %>
+  </div>
+  <%= submit_tag "Apply", class: "rounded-md bg-slate-100 px-4 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-200" %>
+  <% if @selected_type %>
+    <%= link_to "Clear", summary_assets_path, class: "px-2 py-1.5 text-sm text-blue-600 hover:underline" %>
+  <% end %>
+<% end %>
+
 <% if @rows.any? %>
   <div class="mt-6 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
     <table data-controller="sortable-table" class="w-full min-w-[1000px] text-left text-sm">
