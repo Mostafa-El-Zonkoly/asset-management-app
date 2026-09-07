@@ -141,7 +141,8 @@ class PortfolioStatsService
       by_sector = Hash.new(0.to_d)
       cost_by_sector = Hash.new(0.to_d)
       gain_by_sector = Hash.new(0.to_d)
-      asset_ids_per_sector = Hash.new { |h, k| h[k] = Set.new }
+      # [sector][asset_id] => total quantity, to split owned (qty>0) from watchlist (qty==0)
+      qty_by_sector_asset = Hash.new { |h, k| h[k] = Hash.new(0.to_d) }
       ids = normalize_ids(portfolio_ids)
 
       scope = Holding.joins(:asset).merge(Asset.active).includes(asset: [ :asset_type, :sector ])
@@ -149,12 +150,14 @@ class PortfolioStatsService
       scope.find_each do |h|
         next unless h.asset.direct_stock? && h.asset.sector_id.present?
 
+        sector = h.asset.sector
+        qty_by_sector_asset[sector][h.asset_id] += h.quantity.to_d
+        next unless h.quantity.to_d.positive? # watchlist (qty 0): tracked, not owned
+
         calc = HoldingsCalculatorService.for_holding(h)
-        val = calc.current_value
-        by_sector[h.asset.sector] += val
-        cost_by_sector[h.asset.sector] += calc.cost_basis.to_d
-        gain_by_sector[h.asset.sector] += calc.unrealised_gain.to_d
-        asset_ids_per_sector[h.asset.sector] << h.asset_id
+        by_sector[sector] += calc.current_value
+        cost_by_sector[sector] += calc.cost_basis.to_d
+        gain_by_sector[sector] += calc.unrealised_gain.to_d
       end
 
       sectored_total = by_sector.values.sum
@@ -163,7 +166,10 @@ class PortfolioStatsService
       overall = ids ? sector_sectored_weights(nil) : { by_sector_id: by_sector.transform_keys(&:id), total: sectored_total }
       overall_total = overall[:total]
 
-      by_sector.sort_by { |sector, _| sector.label }.map do |sector, value|
+      qty_by_sector_asset.keys.sort_by(&:label).map do |sector|
+        value = by_sector[sector]
+        owned = qty_by_sector_asset[sector].count { |_aid, q| q.positive? }
+        watchlist = qty_by_sector_asset[sector].count { |_aid, q| !q.positive? }
         pct_of_sectored = sectored_total.nonzero? ? ((value / sectored_total) * 100) : 0.to_d
         pct_of_included = included_total.nonzero? ? ((value / included_total) * 100) : 0.to_d
         cost = cost_by_sector[sector]
@@ -172,7 +178,8 @@ class PortfolioStatsService
         {
           sector: sector,
           value: value,
-          asset_count: asset_ids_per_sector[sector].size,
+          asset_count: owned,
+          watchlist_count: watchlist,
           pct_of_sectored: pct_of_sectored,
           pct_of_sectored_overall: overall_total.nonzero? ? ((overall[:by_sector_id][sector.id].to_d / overall_total) * 100) : 0.to_d,
           pct_of_included: pct_of_included,
@@ -188,9 +195,8 @@ class PortfolioStatsService
     # Returns a hash keyed by sector, each value being an array of speciality rows
     # plus a :_total row for the sector.
     def cross_portfolio_sector_speciality_analysis(portfolio_ids = nil)
-      # accum[sector][speciality_or_nil] = value
-      accum = Hash.new { |h, k| h[k] = Hash.new(0.to_d) }
-      asset_ids = Hash.new { |h, k| h[k] = Hash.new { |h2, k2| h2[k2] = Set.new } }
+      accum = Hash.new { |h, k| h[k] = Hash.new(0.to_d) }               # [sector][spec] => owned value
+      qty = Hash.new { |h, k| h[k] = Hash.new { |h2, k2| h2[k2] = Hash.new(0.to_d) } } # [sector][spec][asset_id] => qty
       ids = normalize_ids(portfolio_ids)
 
       scope = Holding.joins(:asset).merge(Asset.active)
@@ -199,11 +205,12 @@ class PortfolioStatsService
       scope.find_each do |h|
         next unless h.asset.direct_stock? && h.asset.sector_id.present?
 
-        val = HoldingsCalculatorService.for_holding(h).current_value
         sector = h.asset.sector
         spec = h.asset.speciality
-        accum[sector][spec] += val
-        asset_ids[sector][spec] << h.asset_id
+        qty[sector][spec][h.asset_id] += h.quantity.to_d
+        next unless h.quantity.to_d.positive? # watchlist (qty 0): tracked, not owned
+
+        accum[sector][spec] += HoldingsCalculatorService.for_holding(h).current_value
       end
 
       sectored_total = accum.values.map { |s| s.values.sum }.sum
@@ -222,19 +229,29 @@ class PortfolioStatsService
       end
       overall_total = overall[:grand_total]
 
-      accum.sort_by { |sector, _| sector.label }.map do |sector, by_spec|
-        sector_total = by_spec.values.sum
+      qty.keys.sort_by(&:label).map do |sector|
+        by_spec_val = accum[sector]
+        sector_total = by_spec_val.values.sum
         pct_sector_of_sectored = sectored_total.nonzero? ? ((sector_total / sectored_total) * 100) : 0.to_d
         pct_sector_of_included = included_total.nonzero? ? ((sector_total / included_total) * 100) : 0.to_d
 
-        speciality_rows = by_spec.sort_by { |spec, _| spec&.label || "zzz" }.map do |spec, value|
+        sector_owned = 0
+        sector_watchlist = 0
+
+        speciality_rows = qty[sector].keys.sort_by { |spec| spec&.label || "zzz" }.map do |spec|
+          value = by_spec_val[spec]
+          owned = qty[sector][spec].count { |_aid, q| q.positive? }
+          watchlist = qty[sector][spec].count { |_aid, q| !q.positive? }
+          sector_owned += owned
+          sector_watchlist += watchlist
           pct_of_sector = sector_total.nonzero? ? ((value / sector_total) * 100) : 0.to_d
           pct_of_sectored = sectored_total.nonzero? ? ((value / sectored_total) * 100) : 0.to_d
           pct_of_included = included_total.nonzero? ? ((value / included_total) * 100) : 0.to_d
           {
             speciality: spec,
             value: value,
-            asset_count: asset_ids[sector][spec].size,
+            asset_count: owned,
+            watchlist_count: watchlist,
             pct_of_sector: pct_of_sector,
             pct_of_sectored: pct_of_sectored,
             pct_of_sectored_overall: overall_total.nonzero? ? ((overall[:spec_value][[sector.id, spec&.id]].to_d / overall_total) * 100) : 0.to_d,
@@ -245,6 +262,8 @@ class PortfolioStatsService
         {
           sector: sector,
           sector_total: sector_total,
+          owned_count: sector_owned,
+          watchlist_count: sector_watchlist,
           pct_of_sectored: pct_sector_of_sectored,
           pct_of_sectored_overall: overall_total.nonzero? ? ((overall[:sector_value][sector.id].to_d / overall_total) * 100) : 0.to_d,
           pct_of_included: pct_sector_of_included,

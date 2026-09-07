@@ -45,7 +45,7 @@
   <summary class="cursor-pointer font-medium text-slate-700">How each column is calculated</summary>
   <dl class="mt-3 grid gap-x-8 gap-y-2 sm:grid-cols-2">
     <div><dt class="font-medium text-slate-800">Sector header — value / % of sectored / % overall / % of included</dt><dd class="text-slate-600">Sector totals: its holdings' value; share of sectored value in the filter; the same share across all portfolios; and its share of the included (or selected) portfolios' total book.</dd></div>
-    <div><dt class="font-medium text-slate-800">Assets</dt><dd class="text-slate-600">Count of distinct direct-stock assets in the speciality, within the current filter.</dd></div>
+    <div><dt class="font-medium text-slate-800">Owned</dt><dd class="text-slate-600">Count of distinct direct-stock assets actually held (quantity &gt; 0) in the speciality. A “+N watch” badge (and the sector header’s Watch chip) counts registered assets with quantity 0 (watchlist), which never affect value, weight or gain/loss.</dd></div>
     <div><dt class="font-medium text-slate-800">Value</dt><dd class="text-slate-600">Sum of current value of the speciality's holdings, in the reporting currency.</dd></div>
     <div><dt class="font-medium text-slate-800">% of sector</dt><dd class="text-slate-600">Speciality value ÷ its parent sector's total. Sums to 100% within each sector.</dd></div>
     <div><dt class="font-medium text-slate-800">% of sectored</dt><dd class="text-slate-600">Speciality value ÷ total sectored value, within the current filter.</dd></div>
@@ -75,6 +75,10 @@
             <span class="text-sm text-slate-500">
               <%= number_with_precision(group[:sector_total], precision: 2) %> <%= @reporting_currency&.code %>
             </span>
+            <span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">Owned <%= group[:owned_count] %></span>
+            <% if group[:watchlist_count].to_i > 0 %>
+              <span class="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">Watch <%= group[:watchlist_count] %></span>
+            <% end %>
           </div>
           <div class="flex gap-4 text-sm text-slate-600">
             <span>
@@ -98,7 +102,7 @@
             <thead class="text-xs uppercase tracking-wide text-slate-400">
               <tr>
                 <th class="cursor-pointer select-none pl-8 px-4 py-2 text-left hover:bg-slate-50" data-col="0" data-type="string">Speciality <span class="sort-icon text-slate-300">↕</span></th>
-                <th class="cursor-pointer select-none px-4 py-2 text-right hover:bg-slate-50" data-col="1" data-type="number">Assets <span class="sort-icon text-slate-300">↕</span></th>
+                <th class="cursor-pointer select-none px-4 py-2 text-right hover:bg-slate-50" data-col="1" data-type="number">Owned <span class="sort-icon text-slate-300">↕</span></th>
                 <th class="cursor-pointer select-none px-4 py-2 text-right hover:bg-slate-50" data-col="2" data-type="number">Value (<%= @reporting_currency&.code %>) <span class="sort-icon text-slate-300">↕</span></th>
                 <th class="cursor-pointer select-none px-4 py-2 text-right hover:bg-slate-50" data-col="3" data-type="number">% of sector <span class="sort-icon text-slate-300">↕</span></th>
                 <th class="cursor-pointer select-none px-4 py-2 text-right hover:bg-slate-50" data-col="4" data-type="number">% of sectored <span class="sort-icon text-slate-300">↕</span></th>
@@ -122,6 +126,9 @@
                       <%= link_to row[:asset_count], sector_speciality_detail_portfolios_path(sector_id: group[:sector].id, speciality_id: row[:speciality].id, portfolio_ids: @selected_portfolio_ids), class: "text-blue-600 hover:underline" %>
                     <% else %>
                       <%= link_to row[:asset_count], sector_detail_portfolios_path(sector_id: group[:sector].id, portfolio_ids: @selected_portfolio_ids), class: "text-blue-600 hover:underline" %>
+                    <% end %>
+                    <% if row[:watchlist_count].to_i > 0 %>
+                      <span class="ml-1 rounded bg-amber-50 px-1 text-[10px] font-medium text-amber-700" title="Watchlist (quantity 0, not owned)">+<%= row[:watchlist_count] %> watch</span>
                     <% end %>
                   </td>
                   <td class="px-4 py-2 text-right font-mono"><%= number_with_precision(row[:value], precision: 2) %></td>
@@ -156,7 +163,10 @@
             <tfoot class="border-t border-slate-200 bg-slate-50 text-xs font-semibold text-slate-600">
               <tr>
                 <td class="pl-8 px-4 py-2">Sector total</td>
-                <td class="px-4 py-2 text-right"><%= group[:speciality_rows].sum { |r| r[:asset_count] } %></td>
+                <td class="px-4 py-2 text-right">
+                  <%= group[:owned_count] %>
+                  <% if group[:watchlist_count].to_i > 0 %><span class="ml-1 rounded bg-amber-50 px-1 text-[10px] font-medium text-amber-700">+<%= group[:watchlist_count] %> watch</span><% end %>
+                </td>
                 <td class="px-4 py-2 text-right font-mono"><%= number_with_precision(group[:sector_total], precision: 2) %></td>
                 <td class="px-4 py-2 text-right font-mono">100.0%</td>
                 <td class="px-4 py-2 text-right font-mono"><%= number_with_precision(group[:pct_of_sectored], precision: 1) %>%</td>
