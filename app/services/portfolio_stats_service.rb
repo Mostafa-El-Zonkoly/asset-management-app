@@ -21,13 +21,13 @@ class PortfolioStatsService
 
     # Total value (reporting ccy) of portfolios included in combined % / share-of-book denominators.
     def combined_percent_total_value
-      Portfolio.where(include_in_combined_percent: true).inject(0.to_d) do |sum, p|
+      Portfolio.active.where(include_in_combined_percent: true).inject(0.to_d) do |sum, p|
         sum + summary(p)[:total_value]
       end
     end
 
     def combined_percent_total_value_from_rows(rows)
-      rows.select { |r| r[:portfolio].include_in_combined_percent }.sum { |r| r[:stats][:total_value].to_d }
+      rows.select { |r| r[:portfolio].include_in_combined_percent && r[:portfolio].active }.sum { |r| r[:stats][:total_value].to_d }
     end
 
     # Normalize a portfolio_ids filter (array/scalar/nil) to a clean array of ints,
@@ -332,14 +332,14 @@ class PortfolioStatsService
 
     # Aggregates all portfolios; all figures in reporting currency (via exchange rates).
     def overall_summary
-      return empty_summary_hash if Portfolio.none?
+      return empty_summary_hash if Portfolio.active.none?
 
       total_value = 0.to_d
       total_cost = 0.to_d
       unrealised = 0.to_d
       realised = 0.to_d
 
-      Portfolio.find_each do |p|
+      Portfolio.active.find_each do |p|
         s = summary(p)
         total_value += s[:total_value]
         total_cost += s[:total_cost]
@@ -368,7 +368,7 @@ class PortfolioStatsService
     def all_portfolios_detail_rows
       invested_included = combined_percent_total_value
       wealth = wealth_total_for_share_percent(invested_total: invested_included)
-      Portfolio.includes(
+      Portfolio.active.includes(
         :whole_target_type,
         portfolio_targets: [ :category, :target_type ],
         portfolio_management_style_targets: [ :management_style, :target_type ]

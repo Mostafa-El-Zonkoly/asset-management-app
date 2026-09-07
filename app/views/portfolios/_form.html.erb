@@ -17,6 +17,12 @@
   </div>
   <div class="rounded-lg border border-slate-200 p-4">
     <label class="flex items-start gap-2 text-sm text-slate-900">
+      <%= f.check_box :active, { class: "mt-1 rounded border-slate-300" }, "1", "0" %>
+      <span><span class="font-medium">Active</span> — when unchecked, this portfolio is <strong>disabled</strong>: it is excluded from portfolio statistics, the dashboard, and combined totals. Its data is kept and it stays on the portfolios list so you can re-enable it.</span>
+    </label>
+  </div>
+  <div class="rounded-lg border border-slate-200 p-4">
+    <label class="flex items-start gap-2 text-sm text-slate-900">
       <%= f.check_box :include_in_combined_percent, { class: "mt-1 rounded border-slate-300" }, "1", "0" %>
       <span><span class="font-medium">Include in combined %</span> — count this portfolio’s value in the <strong>invested</strong> part of the denominator for “% combined” / share targets. Wallet cash is added separately to that denominator on the <%= link_to "portfolios list", portfolios_path, class: "text-blue-600 underline" %>.</span>
     </label>
