@@ -8,6 +8,7 @@ Rails.application.routes.draw do
   resources :portfolios do
     member do
       get :xirr
+      patch :toggle_active
     end
     collection do
       get :funding_plan

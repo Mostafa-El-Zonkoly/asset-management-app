@@ -8,10 +8,15 @@
     <%= link_to "XIRR", xirr_portfolio_path(@portfolio), class: "rounded-md bg-slate-800 px-3 py-2 text-sm font-medium text-white hover:bg-slate-900" %>
     <%= link_to "Details", xirr_portfolio_path(@portfolio), class: "rounded-md border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50" %>
     <%= link_to "Edit", edit_portfolio_path(@portfolio), class: "rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+    <%= button_to (@portfolio.active? ? "Disable" : "Enable"), toggle_active_portfolio_path(@portfolio), method: :patch, class: "rounded-md border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50" %>
     <%= link_to "Purification (تطهير)", purification_entries_path(portfolio_id: @portfolio.id), class: "rounded-md border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50" %>
     <%= button_to "Delete", portfolio_path(@portfolio), method: :delete, form: { data: { turbo_confirm: "Delete this portfolio?" } }, class: "rounded-md bg-red-600 px-3 py-2 text-sm text-white" %>
   </div>
 </div>
+
+<% unless @portfolio.active %>
+  <div class="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">This portfolio is <span class="font-medium">disabled</span> — excluded from portfolio statistics, the dashboard, and combined totals. Use <span class="font-medium">Enable</span> above to restore it.</div>
+<% end %>
 
 <% if @portfolio.errors.any? %>
   <div class="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-800"><%= @portfolio.errors.full_messages.to_sentence %></div>

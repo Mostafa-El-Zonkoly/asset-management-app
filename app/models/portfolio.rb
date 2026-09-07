@@ -19,6 +19,9 @@ class Portfolio < ApplicationRecord
   #   sp     -> one entry per lot for its whole holding period
   enum :purification_method, { aaoifi: "aaoifi", sp: "sp" }, default: "aaoifi"
 
+  scope :active, -> { where(active: true) }
+  scope :disabled, -> { where(active: false) }
+
   validates :name, presence: true
   validates :key, uniqueness: { allow_blank: true, scope: :user_id },
                   format: { with: /\A[a-z0-9_-]+\z/, message: "only lowercase letters, numbers, hyphens, and underscores", allow_blank: true }

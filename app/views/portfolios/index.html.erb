@@ -49,12 +49,16 @@
       <% @summaries_by_portfolio.each do |row| %>
         <% p = row[:portfolio] %>
         <% s = row[:stats] %>
-        <% share_pct = if p.include_in_combined_percent && @wealth_denominator_for_percent.positive?
+        <% share_pct = if p.active && p.include_in_combined_percent && @wealth_denominator_for_percent.positive?
           ((s[:total_value].to_d / @wealth_denominator_for_percent) * 100)
         end %>
-        <tr class="border-t border-slate-100">
+        <tr class="border-t border-slate-100 <%= "opacity-60" unless p.active %>">
           <td class="px-4 py-2 font-medium">
             <%= link_to p.name, p, class: "text-blue-600 hover:underline" %>
+            <% unless p.active %>
+              <span class="ml-1 rounded bg-red-100 px-1.5 py-0.5 text-xs font-normal text-red-700">Disabled</span>
+            <% end %>
+            <%= button_to (p.active ? "Disable" : "Enable"), toggle_active_portfolio_path(p), method: :patch, class: "ml-2 inline rounded border border-slate-300 px-1.5 py-0.5 text-[10px] font-normal text-slate-600 hover:bg-slate-50" %>
             <% unless p.include_in_combined_percent %>
               <span class="ml-1 rounded bg-slate-200 px-1.5 py-0.5 text-xs font-normal text-slate-700" title="Excluded from combined % denominator">off</span>
             <% end %>

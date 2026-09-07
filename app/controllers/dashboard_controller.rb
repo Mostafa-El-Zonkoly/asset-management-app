@@ -2,7 +2,7 @@
 
 class DashboardController < ApplicationController
   def index
-    @portfolios = Portfolio.order(:name)
+    @portfolios = Portfolio.active.order(:name)
     @portfolio =
       if params[:portfolio_id].present?
         @portfolios.find_by(id: params[:portfolio_id]) || @portfolios.first

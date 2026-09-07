@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class PortfoliosController < ApplicationController
-  before_action :set_portfolio, only: %i[show edit update destroy xirr]
+  before_action :set_portfolio, only: %i[show edit update destroy xirr toggle_active]
 
   def funding_plan
     @reporting_currency = Currency.base.first
@@ -159,6 +159,12 @@ class PortfoliosController < ApplicationController
     redirect_to portfolios_path, notice: "Portfolio removed."
   end
 
+  def toggle_active
+    @portfolio.update(active: !@portfolio.active)
+    state = @portfolio.active? ? "enabled" : "disabled"
+    redirect_back fallback_location: portfolios_path, notice: "Portfolio #{@portfolio.name} #{state}."
+  end
+
   private
 
   # Portfolio filter for the cross-portfolio analysis pages. Reads params[:portfolio_ids]
@@ -204,7 +210,7 @@ class PortfoliosController < ApplicationController
   def portfolio_params
     params.require(:portfolio).permit(
       :name, :key, :description,
-      :include_in_combined_percent,
+      :include_in_combined_percent, :active,
       :whole_target_type_id, :whole_target_percentage, :whole_target_amount
     )
   end
