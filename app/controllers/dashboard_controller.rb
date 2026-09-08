@@ -2,6 +2,7 @@
 
 class DashboardController < ApplicationController
   def index
+    SnapshotAutoRecorder.run(current_user&.id)
     @portfolios = Portfolio.active.order(:name)
     @portfolio =
       if params[:portfolio_id].present?

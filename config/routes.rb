@@ -62,7 +62,9 @@ Rails.application.routes.draw do
     resource :free_cash_target, only: %i[edit update]
     resource :zaka_setting, only: %i[edit update]
     resource :core_scoring_setting, only: %i[edit update]
-    resource :analytics_setting, only: %i[edit update]
+    resource :analytics_setting, only: %i[edit update] do
+      post :backfill_snapshots
+    end
     resources :categories, except: :show
     resources :currencies do
       member do

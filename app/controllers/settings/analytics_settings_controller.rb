@@ -6,6 +6,17 @@ module Settings
 
     def edit; end
 
+    def backfill_snapshots
+      result = PortfolioSnapshotBackfillService.call
+      notice =
+        if result[:error]
+          result[:error]
+        else
+          "Backfill complete: #{result[:created]} snapshot(s) created across #{result[:portfolios]} portfolio(s) from #{result[:dates]} priced day(s)."
+        end
+      redirect_to edit_settings_analytics_setting_path, notice: notice
+    end
+
     def update
       if @setting.update(record_params)
         redirect_to edit_settings_analytics_setting_path, notice: "Analytics settings saved."
