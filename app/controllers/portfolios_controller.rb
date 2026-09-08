@@ -47,7 +47,7 @@ class PortfoliosController < ApplicationController
   end
 
   def statistics
-    SnapshotAutoRecorder.run
+    SnapshotAutoRecorder.run(current_user&.id)
     @reporting_currency = Currency.base.first
     @missing_fx_codes = PortfolioStatsService.missing_fx_currency_codes_for_reporting
     @overall_stats = PortfolioStatsService.overall_summary

@@ -19,3 +19,16 @@
     <%= link_to "Back to statistics", statistics_portfolios_path, class: "ml-2 text-sm text-slate-600 hover:text-slate-900" %>
   </div>
 <% end %>
+
+<div class="mt-8 max-w-md rounded-lg border border-slate-200 p-4">
+  <h2 class="text-sm font-semibold text-slate-900">Snapshot history</h2>
+  <p class="mt-1 text-xs text-slate-600">
+    Reconstruct historical daily value snapshots from your transactions and stored price history,
+    so the Sharpe ratio has data now instead of waiting for daily snapshots to accumulate.
+    Existing snapshots are kept; only missing days are filled. Historical FX uses current rates.
+  </p>
+  <%= button_to "Backfill snapshot history", backfill_snapshots_settings_analytics_setting_path,
+        method: :post,
+        form: { data: { turbo_confirm: "Reconstruct historical snapshots from price history?" } },
+        class: "mt-3 rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50" %>
+</div>
