@@ -155,7 +155,7 @@
 
   <div class="mt-10 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
     <div class="border-b border-slate-100 px-4 py-3 font-medium">At a glance</div>
-    <table data-controller="sortable-table" class="w-full min-w-[62rem] text-left text-sm">
+    <table data-controller="sortable-table" class="w-full min-w-[68rem] text-left text-sm">
       <thead class="bg-slate-50 text-xs uppercase text-slate-500">
         <tr>
           <th class="px-4 py-2">Portfolio</th>
@@ -164,6 +164,7 @@
           <th class="px-4 py-2 text-right">Total gain</th>
           <th class="px-4 py-2 text-right">Total gain %</th>
           <th class="px-4 py-2 text-right">XIRR</th>
+          <th class="px-4 py-2 text-right" title="Annualised Sharpe ratio from daily snapshots: (return − risk-free) ÷ volatility">Sharpe</th>
           <th class="px-4 py-2">Whole-portfolio target</th>
           <th class="px-4 py-2 text-right">Δ target %</th>
           <th class="px-4 py-2 text-right">Δ target (<%= @reporting_currency&.code || "value" %>)</th>
@@ -203,6 +204,14 @@
                 <% end %>
               <% else %>
                 <span class="text-slate-400">—</span>
+              <% end %>
+            </td>
+            <% sh = @portfolio_sharpe_by_id[p.id] %>
+            <td class="px-4 py-2 text-right tabular-nums text-slate-700" data-sort-value="<%= sh && sh[:sharpe] ? sh[:sharpe] : -9999 %>">
+              <% if sh && !sh[:insufficient] && sh[:sharpe] %>
+                <span title="Ann. return <%= number_with_precision(sh[:ann_return_pct], precision: 1) %>% · vol <%= number_with_precision(sh[:ann_vol_pct], precision: 1) %>% · rf <%= number_with_precision(sh[:risk_free_pct], precision: 1) %>% · <%= sh[:periods] %> intervals"><%= number_with_precision(sh[:sharpe], precision: 2) %></span>
+              <% else %>
+                <span class="text-slate-400" title="Needs more daily snapshot history<%= sh ? " (#{sh[:periods]}/#{sh[:min_required]})" : "" %>">—</span>
               <% end %>
             </td>
             <td class="px-4 py-2 text-slate-700">
