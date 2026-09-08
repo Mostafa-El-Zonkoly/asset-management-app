@@ -54,6 +54,9 @@ class PortfoliosController < ApplicationController
     @portfolio_xirr_by_id = @portfolio_rows.each_with_object({}) do |row, h|
       h[row[:portfolio].id] = PortfolioXirrService.call(row[:portfolio])
     end
+    @portfolio_sharpe_by_id = @portfolio_rows.each_with_object({}) do |row, h|
+      h[row[:portfolio].id] = PortfolioSharpeService.call(row[:portfolio])
+    end
     @invested_included_total = PortfolioStatsService.combined_percent_total_value
     @wallet_cash_reporting = PortfolioStatsService.total_wallet_balance_reporting
     @wealth_denominator_for_percent = PortfolioStatsService.wealth_total_for_share_percent(
@@ -205,6 +208,7 @@ class PortfoliosController < ApplicationController
     @ms_allocation = PortfolioStatsService.management_style_allocation(@portfolio)
     @ms_targets = @portfolio.portfolio_management_style_targets.includes(:management_style, :target_type)
     @portfolio_xirr = PortfolioXirrService.call(@portfolio)
+    @sharpe = PortfolioSharpeService.call(@portfolio)
   end
 
   def portfolio_params

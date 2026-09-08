@@ -1,0 +1,21 @@
+<% content_for :title, "Analytics settings" %>
+<h1 class="mb-2 text-2xl font-semibold">Analytics settings</h1>
+<p class="mb-6 max-w-2xl text-sm text-slate-600">
+  The annual <strong>risk-free rate</strong> is subtracted from each portfolio's annualised return when computing its
+  <strong>Sharpe ratio</strong> on the <%= link_to "statistics page", statistics_portfolios_path, class: "text-blue-600 hover:underline" %>.
+  Use a rate that matches your reporting currency (e.g. the local T-bill / deposit rate). Leave at 0 for a plain return-to-volatility ratio.
+</p>
+
+<%= form_with model: @setting, url: settings_analytics_setting_path, method: :patch, class: "max-w-md space-y-4" do |f| %>
+  <% if @setting.errors.any? %>
+    <div class="rounded-md bg-red-50 p-3 text-sm text-red-800"><%= @setting.errors.full_messages.to_sentence %></div>
+  <% end %>
+  <div>
+    <%= f.label :risk_free_rate_pct, "Annual risk-free rate % (0–100)", class: "block text-sm font-medium text-slate-900" %>
+    <%= f.number_field :risk_free_rate_pct, step: :any, min: 0, max: 100, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+  </div>
+  <div class="flex gap-2">
+    <%= f.submit "Save", class: "rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700" %>
+    <%= link_to "Back to statistics", statistics_portfolios_path, class: "ml-2 text-sm text-slate-600 hover:text-slate-900" %>
+  </div>
+<% end %>
