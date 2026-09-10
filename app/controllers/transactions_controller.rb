@@ -2,7 +2,7 @@
 
 class TransactionsController < ApplicationController
   before_action :load_collections, only: %i[new create edit update]
-  before_action :set_transaction, only: %i[show edit update]
+  before_action :set_transaction, only: %i[show edit update toggle_position_role]
 
   def index
     @q = PortfolioTransaction.includes(:portfolio, :asset, :transaction_type, :currency).ransack(params[:q])
@@ -21,6 +21,22 @@ class TransactionsController < ApplicationController
     @transaction.reload
     flash.now[:alert] = e.message
     render :edit, status: :unprocessable_entity
+  end
+
+  # One-click flip of a BUY's Position Role (base <-> temporary) without the edit form.
+  # Routes through the amend service so the FIFO lot ledger is rebuilt with the new role.
+  def toggle_position_role
+    unless @transaction.buy?
+      redirect_back fallback_location: transactions_path, alert: "Position role applies to buys only."
+      return
+    end
+
+    new_role = @transaction.position_role == "temporary" ? "base" : "temporary"
+    TransactionAmendService.call!(@transaction, { position_role: new_role })
+    redirect_back fallback_location: transactions_path,
+                  notice: "Position role set to #{PortfolioTransaction::POSITION_ROLE_LABELS[new_role]}."
+  rescue TransactionAmendService::Error => e
+    redirect_back fallback_location: transactions_path, alert: e.message
   end
 
   def new

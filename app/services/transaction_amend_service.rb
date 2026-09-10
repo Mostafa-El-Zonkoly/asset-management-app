@@ -8,6 +8,7 @@ class TransactionAmendService
   PERMITTED = %w[
     portfolio_id quantity price_per_unit total_amount currency_id date
     related_wallet_id transfer_to_wallet_id notes
+    position_role sell_from sell_from_lot_buy_id
   ].freeze
 
   FINANCIAL_KEYS = %w[portfolio_id quantity price_per_unit total_amount currency_id related_wallet_id transfer_to_wallet_id].freeze
@@ -54,15 +55,16 @@ class TransactionAmendService
   def apply_patch!(tx, deltas)
     return apply_transfer_metadata_only!(tx, deltas) if tx.transfer_transaction?
 
-    stamp = deltas.key?("notes") ? { notes: deltas["notes"] } : {}
-    date_attrs = stamped_date_attrs(tx, deltas)
     touching_financial = FINANCIAL_KEYS.any? { |k| deltas.key?(k) }
 
     unless touching_financial
-      attrs = stamp.merge(date_attrs)
-      return tx if attrs.blank?
+      return tx if deltas.empty?
 
-      tx.assign_attributes(attrs)
+      deltas.each_key do |column|
+        next if PERMITTED.exclude?(column)
+
+        write_column!(tx, column, deltas[column])
+      end
       tx.save!
       return tx
     end
@@ -133,10 +135,12 @@ class TransactionAmendService
 
   def coerce_incoming(column, raw)
     case column
-    when "portfolio_id", "currency_id", "related_wallet_id", "transfer_to_wallet_id"
+    when "portfolio_id", "currency_id", "related_wallet_id", "transfer_to_wallet_id", "sell_from_lot_buy_id"
       raw.present? ? raw.to_i : nil
     when "quantity", "price_per_unit", "total_amount"
       BigDecimal(raw.to_s.presence || "0")
+    when "position_role", "sell_from"
+      raw.presence
     else
       raw
     end
@@ -146,7 +150,9 @@ class TransactionAmendService
     case column
     when "quantity", "price_per_unit", "total_amount"
       tx.public_send(column).to_d
-    when "portfolio_id", "currency_id", "related_wallet_id", "transfer_to_wallet_id"
+    when "portfolio_id", "currency_id", "related_wallet_id", "transfer_to_wallet_id", "sell_from_lot_buy_id"
+      tx.public_send(column)
+    when "position_role", "sell_from"
       tx.public_send(column)
     when "notes"
       tx.read_attribute_before_type_cast("notes")
@@ -159,8 +165,10 @@ class TransactionAmendService
     case column
     when "notes"
       new_val.to_s == old_val.to_s
-    when "portfolio_id", "currency_id", "related_wallet_id", "transfer_to_wallet_id"
+    when "portfolio_id", "currency_id", "related_wallet_id", "transfer_to_wallet_id", "sell_from_lot_buy_id"
       new_val.blank? ? old_val.nil? || old_val.blank? : new_val.to_i == old_val.to_i
+    when "position_role", "sell_from"
+      new_val.to_s == old_val.to_s
     when "quantity", "price_per_unit", "total_amount"
       new_val.to_d == old_val.to_d
     when "date"
