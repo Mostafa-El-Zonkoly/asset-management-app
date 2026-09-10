@@ -11,6 +11,17 @@ module Api
       render json: data
     end
 
+    def performance_series
+      portfolios = current_user.portfolios.order(:name)
+      ids = params[:portfolio_ids].to_s.split(",").map(&:to_i).reject(&:zero?)
+      portfolios = portfolios.where(id: ids) if ids.present?
+      role = %w[all base temporary].include?(params[:role].to_s) ? params[:role].to_s : "all"
+      range = ChartRangeHelper.range(params[:range] || "3m")
+      from = range&.begin || Date.new(1900, 1, 1)
+      series = PortfolioPerformanceService.normalized_series(portfolios.to_a, role: role, from: from, to: Date.current)
+      render json: series.map { |label, points| { label: label, points: points } }
+    end
+
     def allocation
       portfolio = current_user.portfolios.find(params[:id])
       render json: PortfolioStatsService.category_allocation(portfolio)

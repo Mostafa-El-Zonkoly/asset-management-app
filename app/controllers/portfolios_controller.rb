@@ -3,6 +3,22 @@
 class PortfoliosController < ApplicationController
   before_action :set_portfolio, only: %i[show edit update destroy xirr toggle_active]
 
+  def performance
+    @portfolios = current_user.portfolios.order(:name)
+    owned = @portfolios.ids
+    raw = params[:portfolio_ids]
+    raw = raw.to_s.split(",") if raw.is_a?(String)
+    @selected_portfolio_ids = Array(raw).map(&:to_i).uniq & owned
+    scope = @selected_portfolio_ids.present? ? @portfolios.where(id: @selected_portfolio_ids).to_a : @portfolios.to_a
+
+    @position_role = position_role_param
+    @metric = params[:metric] == "pnl" ? "pnl" : "pct"
+    @chart_range = params[:range].presence || "3m"
+    @reporting_currency = Currency.base.first
+    @rows = PortfolioPerformanceService.table(scope, role: @position_role)
+    @period_defs = PortfolioPerformanceService::PERIODS
+  end
+
   def funding_plan
     @reporting_currency = Currency.base.first
     @amount = parse_amount_param(params[:amount])
@@ -219,13 +235,25 @@ class PortfoliosController < ApplicationController
     @ms_targets = @portfolio.portfolio_management_style_targets.includes(:management_style, :target_type)
     @portfolio_xirr = PortfolioXirrService.call(@portfolio)
     @sharpe = PortfolioSharpeService.call(@portfolio)
+    @perf = PortfolioPerformanceService.for_portfolio(@portfolio)
+    @perf_period_defs = PortfolioPerformanceService::PERIODS
+    @benchmark = @portfolio.benchmark_market_index
+    if @benchmark && @perf.inception && @perf.as_of
+      bounds = PortfolioPerformanceService.boundaries(as_of: @perf.as_of, inception: @perf.inception)
+      @benchmark_returns = @perf_period_defs.to_h do |key, _l|
+        b = bounds[key]
+        pct = b ? IndexReturnService.percent(@benchmark, from: b, to: @perf.as_of) : nil
+        [key, pct]
+      end
+    end
   end
 
   def portfolio_params
     params.require(:portfolio).permit(
       :name, :key, :description,
       :include_in_combined_percent, :active,
-      :whole_target_type_id, :whole_target_percentage, :whole_target_amount
+      :whole_target_type_id, :whole_target_percentage, :whole_target_amount,
+      :benchmark_market_index_id
     )
   end
 

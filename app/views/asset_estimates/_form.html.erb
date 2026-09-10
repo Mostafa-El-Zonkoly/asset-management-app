@@ -1,0 +1,82 @@
+<%= form_with model: [@asset, estimate], url: form_url, method: form_method, class: "space-y-4" do |f| %>
+  <% if estimate.errors.any? %>
+    <div class="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+      <%= estimate.errors.full_messages.to_sentence %>
+    </div>
+  <% end %>
+
+  <div class="grid gap-4 sm:grid-cols-2">
+    <label class="block text-sm">
+      <span class="font-medium text-slate-700">Source name</span>
+      <%= f.text_field :source_name, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2", placeholder: "e.g. Mubasher" %>
+    </label>
+    <label class="block text-sm">
+      <span class="font-medium text-slate-700">Source family <span class="font-normal text-slate-400">(same value = same underlying dataset)</span></span>
+      <%= f.text_field :source_family, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2", placeholder: "e.g. analyst_consensus_etel" %>
+    </label>
+    <label class="block text-sm">
+      <span class="font-medium text-slate-700">Estimate type</span>
+      <%= f.select :estimate_type, AssetEstimate::ESTIMATE_TYPE_LABELS.map { |k, v| [v, k] }, {}, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+    </label>
+    <label class="block text-sm">
+      <span class="font-medium text-slate-700">Data role</span>
+      <%= f.select :data_role, AssetEstimate::DATA_ROLE_LABELS.map { |k, v| [v, k] }, {}, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+      <span class="mt-0.5 block text-[11px] text-slate-400">"Data only" rows never contribute a target to aggregates.</span>
+    </label>
+    <label class="block text-sm">
+      <span class="font-medium text-slate-700">Horizon</span>
+      <%= f.select :horizon_type, AssetEstimate::HORIZON_TYPE_LABELS.map { |k, v| [v, k] }, {}, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+    </label>
+    <label class="block text-sm">
+      <span class="font-medium text-slate-700">Horizon days <span class="font-normal text-slate-400">(optional)</span></span>
+      <%= f.number_field :horizon_days, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+    </label>
+    <label class="block text-sm">
+      <span class="font-medium text-slate-700">Estimate date</span>
+      <%= f.date_field :estimate_date, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+    </label>
+    <label class="block text-sm">
+      <span class="font-medium text-slate-700">Currency</span>
+      <%= f.collection_select :currency_id, @currencies, :id, :code, {}, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+    </label>
+    <label class="block text-sm">
+      <span class="font-medium text-slate-700">Target price</span>
+      <%= f.number_field :target_price, step: "any", class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+    </label>
+    <label class="block text-sm">
+      <span class="font-medium text-slate-700">Confidence <span class="font-normal text-slate-400">(0–1, optional)</span></span>
+      <%= f.number_field :confidence_score, step: "any", min: 0, max: 1, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+    </label>
+    <label class="block text-sm">
+      <span class="font-medium text-slate-700">Target min <span class="font-normal text-slate-400">(optional)</span></span>
+      <%= f.number_field :target_min, step: "any", class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+    </label>
+    <label class="block text-sm">
+      <span class="font-medium text-slate-700">Target max <span class="font-normal text-slate-400">(optional)</span></span>
+      <%= f.number_field :target_max, step: "any", class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+    </label>
+    <label class="block text-sm">
+      <span class="font-medium text-slate-700">Analyst <span class="font-normal text-slate-400">(optional)</span></span>
+      <%= f.text_field :analyst_name, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+    </label>
+    <label class="block text-sm">
+      <span class="font-medium text-slate-700">Reference URL <span class="font-normal text-slate-400">(optional)</span></span>
+      <%= f.url_field :reference_url, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+    </label>
+  </div>
+
+  <label class="block text-sm">
+    <span class="font-medium text-slate-700">Notes</span>
+    <%= f.text_area :notes, rows: 2, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+  </label>
+
+  <div class="flex flex-wrap items-center gap-4 text-sm">
+    <label class="inline-flex items-center gap-2"><%= f.check_box :preferred, class: "rounded border-slate-300" %> <span class="text-slate-700">Preferred representative for its family</span></label>
+    <label class="inline-flex items-center gap-2"><%= f.check_box :active, class: "rounded border-slate-300" %> <span class="text-slate-700">Active (participates in current aggregates)</span></label>
+  </div>
+
+  <div class="flex items-center gap-2">
+    <%= f.submit submit_label, class: "rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700" %>
+    <%= link_to "Cancel", asset_estimates_path(@asset), class: "text-sm text-slate-600 hover:underline" %>
+  </div>
+<% end %>

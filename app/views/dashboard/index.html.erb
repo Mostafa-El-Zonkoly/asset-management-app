@@ -86,6 +86,44 @@
     </div>
   <% end %>
 
+  <% if @daily_perf_rows.present? %>
+    <div class="mt-6 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div class="flex items-center justify-between px-4 py-3">
+        <h2 class="font-medium text-slate-900">Daily performance</h2>
+        <%= link_to "Full comparison →", performance_portfolios_path, class: "text-sm text-blue-600 hover:underline" %>
+      </div>
+      <table data-controller="sortable-table" class="w-full text-left text-sm">
+        <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+          <tr>
+            <th class="cursor-pointer select-none px-4 py-2 hover:bg-slate-100" data-col="0" data-type="string">Portfolio</th>
+            <th class="cursor-pointer select-none px-4 py-2 text-right hover:bg-slate-100" data-col="1" data-type="number">Value</th>
+            <th class="cursor-pointer select-none px-4 py-2 text-right hover:bg-slate-100" data-col="2" data-type="number">Today %</th>
+            <th class="cursor-pointer select-none px-4 py-2 text-right hover:bg-slate-100" data-col="3" data-type="number">Today P&L</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% @daily_perf_rows.each do |row| %>
+            <% d1 = row.periods[:d1] %>
+            <tr class="border-t border-slate-100 <%= 'bg-slate-50 font-medium' if row.scope == :combined %>"
+                data-vals="<%= [row.label, row.current_value.to_f, (d1.available ? d1.return_pct.to_f : -99_999_999), (d1.available ? d1.pnl.to_f : -99_999_999)].to_json %>">
+              <td class="px-4 py-2">
+                <% if row.scope.is_a?(Portfolio) %><%= link_to row.label, row.scope, class: "text-blue-600 hover:underline" %><% else %><%= row.label %><% end %>
+              </td>
+              <td class="px-4 py-2 text-right tabular-nums"><%= row.current_value ? number_with_precision(row.current_value, precision: 0) : "—" %></td>
+              <td class="px-4 py-2 text-right tabular-nums">
+                <% if d1.available %><span class="<%= pnl_class_for(d1.return_pct) %>"><%= format_upside(d1.return_pct) %></span><% else %><span class="text-slate-300">N/A</span><% end %>
+              </td>
+              <td class="px-4 py-2 text-right tabular-nums">
+                <% if d1.available %><span class="<%= pnl_class_for(d1.pnl) %>"><%= format_pnl_value(d1.pnl, precision: 0) %></span><% else %><span class="text-slate-300">N/A</span><% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+      <p class="px-4 py-2 text-xs text-slate-400">Investment performance only — deposits/withdrawals excluded. In <%= @reporting_currency&.code %>.</p>
+    </div>
+  <% end %>
+
   <% if @portfolio.blank? %>
     <p class="text-slate-600">Create a <%= link_to "portfolio", new_portfolio_path, class: "text-blue-600 underline" %> and add holdings to see KPIs and charts.</p>
   <% else %>

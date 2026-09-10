@@ -45,6 +45,13 @@
       </div>
     </div>
   </fieldset>
+
+  <div>
+    <%= f.label :benchmark_market_index_id, "Benchmark index (optional)", class: "block text-sm font-medium text-slate-900" %>
+    <%= f.collection_select :benchmark_market_index_id, MarketIndex.order(:code), :id, :code, { include_blank: "— none —" }, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+    <p class="mt-1 text-xs text-slate-500">Shown as Benchmark return and Alpha on the portfolio's performance card.</p>
+  </div>
+
   <p class="text-sm text-slate-600">Portfolio totals use each asset’s own currency for prices and convert to the global reporting currency (see <%= link_to "Currencies", settings_currencies_path, class: "text-blue-600 underline" %> — the one marked base).</p>
   <div class="flex gap-2">
     <%= f.submit class: "rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700" %>

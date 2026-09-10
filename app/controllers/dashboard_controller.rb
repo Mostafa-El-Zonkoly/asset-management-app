@@ -26,6 +26,7 @@ class DashboardController < ApplicationController
       @portfolio_xirr = PortfolioXirrService.call(@portfolio)
     end
     @position_totals = PortfolioStatsService.direct_equity_position_totals
+    @daily_perf_rows = PortfolioPerformanceService.table(@portfolios.to_a) if @portfolios.any?
     @recent = PortfolioTransaction.includes(:portfolio, :asset, :transaction_type).order(date: :desc).limit(15)
   end
 end
