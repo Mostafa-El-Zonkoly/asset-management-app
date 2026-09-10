@@ -25,6 +25,7 @@ class DashboardController < ApplicationController
       @allocation = PortfolioStatsService.category_allocation(@portfolio)
       @portfolio_xirr = PortfolioXirrService.call(@portfolio)
     end
+    @position_totals = PortfolioStatsService.direct_equity_position_totals
     @recent = PortfolioTransaction.includes(:portfolio, :asset, :transaction_type).order(date: :desc).limit(15)
   end
 end

@@ -40,7 +40,9 @@ Rails.application.routes.draw do
     end
   end
   resources :zaka_payments, except: :show
-  resources :transactions, only: %i[index show new create edit update]
+  resources :transactions, only: %i[index show new create edit update] do
+    collection { get :lots }
+  end
   resources :wallets, only: [:index]
 
   resources :purification_entries, only: %i[index update] do

@@ -1,0 +1,33 @@
+<%# locals: f (form builder). Shown/hidden by the position-role Stimulus controller. %>
+<div class="rounded-lg border border-slate-200 p-4" data-position-role-target="buyField" hidden>
+  <%= f.label :position_role, "Position role", class: "block text-sm font-medium text-slate-900" %>
+  <%= f.select :position_role,
+        PortfolioTransaction::POSITION_ROLES.map { |r| [PortfolioTransaction::POSITION_ROLE_LABELS[r], r] },
+        { selected: f.object.position_role || "base" },
+        class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+  <p class="mt-1 text-xs text-slate-500"><strong>Base</strong> = permanent strategic position. <strong>Temporary</strong> = tactical add. Applies to buys.</p>
+</div>
+
+<div class="space-y-3 rounded-lg border border-slate-200 p-4" data-position-role-target="sellField" hidden>
+  <div>
+    <%= f.label :sell_from, "Sell from", class: "block text-sm font-medium text-slate-900" %>
+    <%= f.select :sell_from,
+          PortfolioTransaction::SELL_FROMS.map { |r| [PortfolioTransaction::SELL_FROM_LABELS[r], r] },
+          { selected: f.object.sell_from || "temporary_first" },
+          class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2",
+          data: { "position-role-target": "sellFrom", action: "change->position-role#onSellFromChange" } %>
+    <p class="mt-1 text-xs text-slate-500">Which lots this sale consumes, FIFO within each role. Default: temporary first.</p>
+  </div>
+  <div data-position-role-target="lotField" hidden>
+    <div class="flex items-end gap-2">
+      <div class="flex-1">
+        <%= f.label :sell_from_lot_buy_id, "Specific lot", class: "block text-sm font-medium text-slate-900" %>
+        <%= f.select :sell_from_lot_buy_id, [], { include_blank: "— select a lot —" },
+              class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2",
+              data: { "position-role-target": "lotSelect" } %>
+      </div>
+      <button type="button" class="rounded-md border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50" data-action="position-role#reloadLots">Reload lots</button>
+    </div>
+  </div>
+  <p class="rounded-md bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800" data-position-role-target="warning" hidden></p>
+</div>

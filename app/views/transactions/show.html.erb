@@ -14,6 +14,14 @@
   <dt class="font-medium text-slate-700">Type</dt>
   <dd><%= @transaction.transaction_type.label %></dd>
 
+  <% if @transaction.buy? && @transaction.position_role.present? %>
+    <dt class="font-medium text-slate-700">Position role</dt>
+    <dd><%= @transaction.position_role_label %></dd>
+  <% elsif @transaction.sell? && @transaction.sell_from.present? %>
+    <dt class="font-medium text-slate-700">Sell from</dt>
+    <dd><%= @transaction.sell_from_label %></dd>
+  <% end %>
+
   <dt class="font-medium text-slate-700">Portfolio</dt>
   <dd><%= @transaction.portfolio&.name || "—" %></dd>
 

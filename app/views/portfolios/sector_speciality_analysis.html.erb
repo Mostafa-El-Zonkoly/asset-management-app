@@ -10,11 +10,11 @@
   <div class="flex gap-2">
     <button id="expand-all" class="rounded-md border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50">Expand all</button>
     <button id="collapse-all" class="rounded-md border border-slate-300 px-3 py-2 text-sm hover:bg-slate-50">Collapse all</button>
-    <%= link_to "By sector only", sector_analysis_portfolios_path(portfolio_ids: @selected_portfolio_ids), class: "rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+    <%= link_to "By sector only", sector_analysis_portfolios_path(portfolio_ids: @selected_portfolio_ids, position_role: @position_role), class: "rounded-md border border-slate-300 px-3 py-2 text-sm" %>
   </div>
 </div>
 
-<%= render "portfolios/portfolio_filter", url: sector_speciality_analysis_portfolios_path, portfolios: @portfolios, selected_ids: @selected_portfolio_ids %>
+<%= render "portfolios/portfolio_filter", url: sector_speciality_analysis_portfolios_path, portfolios: @portfolios, selected_ids: @selected_portfolio_ids, position_role: @position_role %>
 
 <% if @reporting_currency %>
   <p class="mt-4 text-sm text-slate-600">Figures in reporting currency <span class="font-medium"><%= @reporting_currency.code %></span>.</p>
@@ -69,7 +69,7 @@
                 aria-expanded="true">
           <div class="flex items-center gap-3">
             <span class="text-slate-400 transition-transform duration-150 toggle-chevron">▾</span>
-            <%= link_to group[:sector].label, sector_detail_portfolios_path(sector_id: group[:sector].id, portfolio_ids: @selected_portfolio_ids),
+            <%= link_to group[:sector].label, sector_detail_portfolios_path(sector_id: group[:sector].id, portfolio_ids: @selected_portfolio_ids, position_role: @position_role),
                   class: "font-semibold text-slate-900 hover:text-blue-600 hover:underline",
                   onclick: "event.stopPropagation();" %>
             <span class="text-sm text-slate-500">
@@ -116,16 +116,16 @@
                     data-vals="<%= [row[:speciality]&.label || '', row[:asset_count], row[:value].to_f, row[:pct_of_sector].to_f, row[:pct_of_sectored].to_f, row[:pct_of_sectored_overall].to_f, row[:pct_of_included].to_f].to_json %>">
                   <td class="pl-8 px-4 py-2 text-slate-700">
                     <% if row[:speciality] %>
-                      <%= link_to row[:speciality].label, sector_speciality_detail_portfolios_path(sector_id: group[:sector].id, speciality_id: row[:speciality].id, portfolio_ids: @selected_portfolio_ids), class: "hover:text-blue-600 hover:underline" %>
+                      <%= link_to row[:speciality].label, sector_speciality_detail_portfolios_path(sector_id: group[:sector].id, speciality_id: row[:speciality].id, portfolio_ids: @selected_portfolio_ids, position_role: @position_role), class: "hover:text-blue-600 hover:underline" %>
                     <% else %>
-                      <%= link_to "— no speciality —", sector_detail_portfolios_path(sector_id: group[:sector].id, portfolio_ids: @selected_portfolio_ids), class: "text-slate-400 hover:text-blue-600 hover:underline" %>
+                      <%= link_to "— no speciality —", sector_detail_portfolios_path(sector_id: group[:sector].id, portfolio_ids: @selected_portfolio_ids, position_role: @position_role), class: "text-slate-400 hover:text-blue-600 hover:underline" %>
                     <% end %>
                   </td>
                   <td class="px-4 py-2 text-right text-slate-500">
                     <% if row[:speciality] %>
-                      <%= link_to row[:asset_count], sector_speciality_detail_portfolios_path(sector_id: group[:sector].id, speciality_id: row[:speciality].id, portfolio_ids: @selected_portfolio_ids), class: "text-blue-600 hover:underline" %>
+                      <%= link_to row[:asset_count], sector_speciality_detail_portfolios_path(sector_id: group[:sector].id, speciality_id: row[:speciality].id, portfolio_ids: @selected_portfolio_ids, position_role: @position_role), class: "text-blue-600 hover:underline" %>
                     <% else %>
-                      <%= link_to row[:asset_count], sector_detail_portfolios_path(sector_id: group[:sector].id, portfolio_ids: @selected_portfolio_ids), class: "text-blue-600 hover:underline" %>
+                      <%= link_to row[:asset_count], sector_detail_portfolios_path(sector_id: group[:sector].id, portfolio_ids: @selected_portfolio_ids, position_role: @position_role), class: "text-blue-600 hover:underline" %>
                     <% end %>
                     <% if row[:watchlist_count].to_i > 0 %>
                       <span class="ml-1 rounded bg-amber-50 px-1 text-[10px] font-medium text-amber-700" title="Watchlist (quantity 0, not owned)">+<%= row[:watchlist_count] %> watch</span>

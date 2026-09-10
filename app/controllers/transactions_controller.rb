@@ -55,7 +55,8 @@ class TransactionsController < ApplicationController
   def transaction_update_params
     params.require(:portfolio_transaction).permit(
       :portfolio_id, :quantity, :price_per_unit,
-      :total_amount, :currency_id, :date, :related_wallet_id, :transfer_to_wallet_id, :notes
+      :total_amount, :currency_id, :date, :related_wallet_id, :transfer_to_wallet_id, :notes,
+      :position_role, :sell_from, :sell_from_lot_buy_id
     )
   end
 
@@ -89,14 +90,18 @@ class TransactionsController < ApplicationController
       related_wallet_id: p[:related_wallet_id].presence,
       transfer_to_wallet_id: p[:transfer_to_wallet_id].presence,
       notes: p[:notes],
-      exchange_rate_at_transaction: p[:exchange_rate_at_transaction].presence
+      exchange_rate_at_transaction: p[:exchange_rate_at_transaction].presence,
+      position_role: p[:position_role].presence,
+      sell_from: p[:sell_from].presence,
+      sell_from_lot_buy_id: p[:sell_from_lot_buy_id].presence
     }
   end
 
   def transaction_view_params
     params.require(:portfolio_transaction).permit(
       :portfolio_id, :asset_id, :transaction_type_id, :quantity, :price_per_unit,
-      :total_amount, :currency_id, :date, :related_wallet_id, :transfer_to_wallet_id, :notes
+      :total_amount, :currency_id, :date, :related_wallet_id, :transfer_to_wallet_id, :notes,
+      :position_role, :sell_from, :sell_from_lot_buy_id
     )
   end
 

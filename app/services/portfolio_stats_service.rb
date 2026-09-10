@@ -137,12 +137,13 @@ class PortfolioStatsService
     # Percentages:
     #   - pct_of_sectored: share of total value of all sectored assets (across all portfolios)
     #   - pct_of_included: share of total value of portfolios with include_in_combined_percent
-    def cross_portfolio_sector_analysis(portfolio_ids = nil)
+    def cross_portfolio_sector_analysis(portfolio_ids = nil, position_role: "all")
+      role = position_role.to_s
       by_sector = Hash.new(0.to_d)
       cost_by_sector = Hash.new(0.to_d)
       gain_by_sector = Hash.new(0.to_d)
-      # [sector][asset_id] => total quantity, to split owned (qty>0) from watchlist (qty==0)
-      qty_by_sector_asset = Hash.new { |h, k| h[k] = Hash.new(0.to_d) }
+      qty_by_sector_asset = Hash.new { |h, k| h[k] = Hash.new(0.to_d) }       # total qty (watchlist detection)
+      role_qty_by_sector_asset = Hash.new { |h, k| h[k] = Hash.new(0.to_d) }  # role qty (owned count under filter)
       ids = normalize_ids(portfolio_ids)
 
       scope = Holding.joins(:asset).merge(Asset.active).includes(asset: [ :asset_type, :sector ])
@@ -152,12 +153,14 @@ class PortfolioStatsService
 
         sector = h.asset.sector
         qty_by_sector_asset[sector][h.asset_id] += h.quantity.to_d
-        next unless h.quantity.to_d.positive? # watchlist (qty 0): tracked, not owned
+        next unless h.quantity.to_d.positive?
 
         calc = HoldingsCalculatorService.for_holding(h)
-        by_sector[sector] += calc.current_value
-        cost_by_sector[sector] += calc.cost_basis.to_d
-        gain_by_sector[sector] += calc.unrealised_gain.to_d
+        v, c, g, rq = role_slice(h, calc, role)
+        role_qty_by_sector_asset[sector][h.asset_id] += rq
+        by_sector[sector] += v
+        cost_by_sector[sector] += c
+        gain_by_sector[sector] += g
       end
 
       sectored_total = by_sector.values.sum
@@ -168,7 +171,7 @@ class PortfolioStatsService
 
       qty_by_sector_asset.keys.sort_by(&:label).map do |sector|
         value = by_sector[sector]
-        owned = qty_by_sector_asset[sector].count { |_aid, q| q.positive? }
+        owned = role_qty_by_sector_asset[sector].count { |_aid, q| q.positive? }
         watchlist = qty_by_sector_asset[sector].count { |_aid, q| !q.positive? }
         pct_of_sectored = sectored_total.nonzero? ? ((value / sectored_total) * 100) : 0.to_d
         pct_of_included = included_total.nonzero? ? ((value / included_total) * 100) : 0.to_d
@@ -190,13 +193,29 @@ class PortfolioStatsService
       end
     end
 
+    # Value/cost/unrealised/qty attributable to a Position Role ("all"|"base"|"temporary").
+    def role_slice(holding, calc, role)
+      if role == "all"
+        [calc.current_value.to_d, calc.cost_basis.to_d, calc.unrealised_gain.to_d, holding.quantity.to_d]
+      else
+        sp = PositionRoleService.for_holding(holding, calc: calc)
+        if role == "temporary"
+          [sp.temp_value, sp.temp_cost, sp.temp_unrealised, sp.temp_qty]
+        else
+          [sp.base_value, sp.base_cost, sp.base_unrealised, sp.base_qty]
+        end
+      end
+    end
+
     # Cross-portfolio sector → speciality breakdown.
     # Same filters as cross_portfolio_sector_analysis.
     # Returns a hash keyed by sector, each value being an array of speciality rows
     # plus a :_total row for the sector.
-    def cross_portfolio_sector_speciality_analysis(portfolio_ids = nil)
+    def cross_portfolio_sector_speciality_analysis(portfolio_ids = nil, position_role: "all")
+      role = position_role.to_s
       accum = Hash.new { |h, k| h[k] = Hash.new(0.to_d) }               # [sector][spec] => owned value
-      qty = Hash.new { |h, k| h[k] = Hash.new { |h2, k2| h2[k2] = Hash.new(0.to_d) } } # [sector][spec][asset_id] => qty
+      qty = Hash.new { |h, k| h[k] = Hash.new { |h2, k2| h2[k2] = Hash.new(0.to_d) } } # [sector][spec][asset_id] => total qty
+      role_qty = Hash.new { |h, k| h[k] = Hash.new { |h2, k2| h2[k2] = Hash.new(0.to_d) } } # role qty
       ids = normalize_ids(portfolio_ids)
 
       scope = Holding.joins(:asset).merge(Asset.active)
@@ -208,9 +227,12 @@ class PortfolioStatsService
         sector = h.asset.sector
         spec = h.asset.speciality
         qty[sector][spec][h.asset_id] += h.quantity.to_d
-        next unless h.quantity.to_d.positive? # watchlist (qty 0): tracked, not owned
+        next unless h.quantity.to_d.positive?
 
-        accum[sector][spec] += HoldingsCalculatorService.for_holding(h).current_value
+        calc = HoldingsCalculatorService.for_holding(h)
+        v, _c, _g, rq = role_slice(h, calc, role)
+        role_qty[sector][spec][h.asset_id] += rq
+        accum[sector][spec] += v
       end
 
       sectored_total = accum.values.map { |s| s.values.sum }.sum
@@ -240,7 +262,7 @@ class PortfolioStatsService
 
         speciality_rows = qty[sector].keys.sort_by { |spec| spec&.label || "zzz" }.map do |spec|
           value = by_spec_val[spec]
-          owned = qty[sector][spec].count { |_aid, q| q.positive? }
+          owned = role_qty[sector][spec].count { |_aid, q| q.positive? }
           watchlist = qty[sector][spec].count { |_aid, q| !q.positive? }
           sector_owned += owned
           sector_watchlist += watchlist
@@ -331,6 +353,25 @@ class PortfolioStatsService
     end
 
     # Aggregates all portfolios; all figures in reporting currency (via exchange rates).
+    # Base vs Temporary market value across owned direct-equity holdings (qty > 0),
+    # in reporting currency. Respects the multi-tenant + any Holding default scope.
+    def direct_equity_position_totals
+      base = 0.to_d
+      temp = 0.to_d
+      total = 0.to_d
+      Holding.joins(:asset).merge(Asset.active).where("holdings.quantity > 0")
+             .includes(asset: :asset_type).find_each do |h|
+        next unless h.asset.direct_stock?
+
+        calc = HoldingsCalculatorService.for_holding(h)
+        sp = PositionRoleService.for_holding(h, calc: calc)
+        base += sp.base_value
+        temp += sp.temp_value
+        total += sp.total_value
+      end
+      { total: total, base: base, temp: temp }
+    end
+
     def overall_summary
       return empty_summary_hash if Portfolio.active.none?
 
