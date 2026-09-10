@@ -16,10 +16,14 @@ module Api
       ids = params[:portfolio_ids].to_s.split(",").map(&:to_i).reject(&:zero?)
       portfolios = portfolios.where(id: ids) if ids.present?
       role = %w[all base temporary].include?(params[:role].to_s) ? params[:role].to_s : "all"
+      mode = params[:mode].to_s == "common" ? "common" : "own"
+      benchmark = ActiveModel::Type::Boolean.new.cast(params[:benchmark])
       range = ChartRangeHelper.range(params[:range] || "3m")
       from = range&.begin || Date.new(1900, 1, 1)
-      series = PortfolioPerformanceService.normalized_series(portfolios.to_a, role: role, from: from, to: Date.current)
-      render json: series.map { |label, points| { label: label, points: points } }
+      result = PortfolioPerformanceService.normalized_series(
+        portfolios.to_a, role: role, from: from, to: Date.current, mode: mode, benchmark: benchmark
+      )
+      render json: { common_start: result[:common_start], mode: mode, series: result[:series] }
     end
 
     def allocation

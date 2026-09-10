@@ -5,6 +5,7 @@ require "test_helper"
 # Pure unit tests for the performance math (spec acceptance tests #29 A–F).
 # These exercise the Modified Dietz + compounding logic directly, no DB needed.
 class PortfolioPerformanceServiceTest < ActiveSupport::TestCase
+  DayReturn = PortfolioPerformanceService::DayReturn
   def setup
     @svc = PortfolioPerformanceService.new(base_id: 1)
   end
@@ -69,6 +70,44 @@ class PortfolioPerformanceServiceTest < ActiveSupport::TestCase
     res = @svc.send(:period_result, daily, :y1, "1Y", daily.first.date)
     assert_not res.available
     assert_nil res.return_pct
+  end
+
+  # §10 withdrawal must not create a negative return
+  test "withdrawal is not a negative return" do
+    vals = [[d("2026-01-01"), bd(100_000)], [d("2026-01-02"), bd(80_000)]]
+    daily = @svc.send(:build_daily, vals, flows(d("2026-01-02") => [-20_000, 0]))
+    assert_equal bd(0), daily.last.daily_return
+    assert_equal bd(0), daily.last.daily_pnl
+  end
+
+  # §23 normalization is cash-flow neutral: a deposit day does not move the index
+  test "normalized index ignores deposits, tracks only investment return" do
+    daily = @svc.send(:build_daily,
+      [[d("2026-01-01"), bd(100_000)], [d("2026-01-02"), bd(150_000)], [d("2026-01-03"), bd(165_000)]],
+      flows(d("2026-01-02") => [50_000, 0]))
+    pts = @svc.send(:normalize, daily, from: d("2026-01-01"), to: d("2026-01-03"))
+    assert_equal 100.0, pts[0][1]
+    assert_equal 100.0, pts[1][1], "deposit day stays at 100"
+    assert_equal 110.0, pts[2][1], "+10% investment gain shows as 110"
+    assert_equal 5, pts[0].size, "rich point [date, index, return%, value, pnl]"
+  end
+
+  # §21/§22 common-start: latest inception among the selected set is the base date
+  test "common-start normalization rebases all series to the same date" do
+    a = [DayReturn.new(date: d("2026-01-01"), value: bd(100), external: bd(0), dividend: bd(0), daily_return: nil, daily_pnl: nil),
+         DayReturn.new(date: d("2026-01-10"), value: bd(110), external: bd(0), dividend: bd(0), daily_return: bd("0.10"), daily_pnl: bd(10))]
+    b = [DayReturn.new(date: d("2026-01-10"), value: bd(50), external: bd(0), dividend: bd(0), daily_return: nil, daily_pnl: nil),
+         DayReturn.new(date: d("2026-01-11"), value: bd(55), external: bd(0), dividend: bd(0), daily_return: bd("0.10"), daily_pnl: bd(5))]
+    fa = @svc.send(:window_first_date, a, d("2026-01-01"), d("2026-01-31"))
+    fb = @svc.send(:window_first_date, b, d("2026-01-01"), d("2026-01-31"))
+    common = [fa, fb].max
+    assert_equal d("2026-01-10"), common
+    pa = @svc.send(:normalize, a, from: d("2026-01-01"), to: d("2026-01-31"), start_on: common)
+    pb = @svc.send(:normalize, b, from: d("2026-01-01"), to: d("2026-01-31"), start_on: common)
+    assert_equal "2026-01-10", pa.first[0]
+    assert_equal 100.0, pa.first[1]
+    assert_equal "2026-01-10", pb.first[0]
+    assert_equal 100.0, pb.first[1]
   end
 
   test "align_and_sum carries each series forward across gaps" do

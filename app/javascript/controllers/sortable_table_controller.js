@@ -11,8 +11,12 @@ export default class extends Controller {
     this.decorateHeaders()
   }
 
+  headerRow() {
+    return this.thead.rows[this.thead.rows.length - 1]
+  }
+
   decorateHeaders() {
-    const headers = Array.from(this.thead.rows[0].cells)
+    const headers = Array.from(this.headerRow().cells)
     headers.forEach((th, index) => {
       const label = th.textContent.trim()
       if (!label || th.dataset.sortable === "false") return
@@ -48,7 +52,7 @@ export default class extends Controller {
   }
 
   refreshArrows() {
-    const headers = Array.from(this.thead.rows[0].cells)
+    const headers = Array.from(this.headerRow().cells)
     headers.forEach((th, idx) => {
       const arrow = th.querySelector("[data-sort-arrow]")
       if (!arrow) return
