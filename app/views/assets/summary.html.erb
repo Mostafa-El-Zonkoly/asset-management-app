@@ -39,6 +39,7 @@
           <th class="px-3 py-2 text-right">Amount</th>
           <th class="px-3 py-2 text-right">Total gain/loss %</th>
           <th class="px-3 py-2 text-right">Weight</th>
+          <th class="px-3 py-2 text-right">Base / Temp</th>
           <th class="px-3 py-2 text-right">Zakaa %</th>
           <th class="px-3 py-2">Portfolios</th>
           <th class="px-3 py-2">Asset type</th>
@@ -54,6 +55,17 @@
             <td class="px-3 py-2 text-right tabular-nums"><%= number_with_precision(row.current_value, precision: 2) %></td>
             <td class="px-3 py-2 text-right"><%= format_pnl_percent(row.total_gain_pct, precision: 2) %></td>
             <td class="px-3 py-2 text-right tabular-nums"><%= row.weight_pct ? "#{number_with_precision(row.weight_pct, precision: 2)}%" : "—" %></td>
+            <td class="px-3 py-2 text-right tabular-nums">
+              <% if row.base_pct && row.temp_pct %>
+                <span title="Base <%= number_with_precision(row.base_value, precision: 2) %> · Temporary <%= number_with_precision(row.temp_value, precision: 2) %>">
+                  <span class="text-slate-600"><%= number_with_precision(row.base_pct, precision: 1) %>%</span>
+                  <span class="text-slate-400">/</span>
+                  <span class="text-amber-600"><%= number_with_precision(row.temp_pct, precision: 1) %>%</span>
+                </span>
+              <% else %>
+                <span class="text-slate-400">—</span>
+              <% end %>
+            </td>
             <td class="px-3 py-2 text-right tabular-nums"><%= number_with_precision(a.zaka_percentage, precision: 2) %>%</td>
             <td class="px-3 py-2 text-slate-700"><%= row.portfolio_names.presence || "—" %></td>
             <td class="max-w-xs px-3 py-2 text-slate-700"><%= row.type_descriptor.presence || "—" %></td>

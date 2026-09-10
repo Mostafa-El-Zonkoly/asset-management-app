@@ -76,6 +76,7 @@
           <th class="cursor-pointer select-none px-4 py-3 text-right hover:bg-slate-100" data-col="6" data-type="number">Deviation (pp) <span class="sort-icon text-slate-300">↕</span></th>
           <th class="cursor-pointer select-none px-4 py-3 text-right hover:bg-slate-100" data-col="7" data-type="number">% of included <span class="sort-icon text-slate-300">↕</span></th>
           <th class="cursor-pointer select-none px-4 py-3 text-right hover:bg-slate-100" data-col="8" data-type="number">Gain/Loss % <span class="sort-icon text-slate-300">↕</span></th>
+          <th class="cursor-pointer select-none px-4 py-3 text-right hover:bg-slate-100" data-col="9" data-type="number" title="Base % / Temporary % of the sector's direct-stock value">Base / Temp <span class="sort-icon text-slate-300">↕</span></th>
           <th class="px-4 py-3 text-center">Target</th>
         </tr>
       </thead>
@@ -86,7 +87,7 @@
           <% target_pct = target&.target_percentage&.to_f %>
           <% deviation = target_pct ? (actual_pct - target_pct).round(2) : nil %>
           <tr class="hover:bg-slate-50"
-              data-vals="<%= [row[:sector].label, row[:asset_count], row[:value].to_f, actual_pct, row[:pct_of_sectored_overall].to_f, target_pct || -99999, deviation || -99999, row[:pct_of_included].to_f, row[:gain_pct].to_f].to_json %>">
+              data-vals="<%= [row[:sector].label, row[:asset_count], row[:value].to_f, actual_pct, row[:pct_of_sectored_overall].to_f, target_pct || -99999, deviation || -99999, row[:pct_of_included].to_f, row[:gain_pct].to_f, row[:temp_pct].to_f].to_json %>">
             <td class="px-4 py-3 font-medium text-slate-900">
               <%= link_to row[:sector].label, sector_detail_portfolios_path(sector_id: row[:sector].id, portfolio_ids: @selected_portfolio_ids, position_role: @position_role), class: "hover:text-blue-600 hover:underline" %>
             </td>
@@ -169,6 +170,19 @@
               <span class="<%= gain_color %>">
                 <%= gain_pct >= 0 ? "+" : "" %><%= number_with_precision(gain_pct, precision: 1) %>%
               </span>
+            </td>
+
+            <%# Base / Temporary split of the sector's direct-stock value %>
+            <td class="px-4 py-3 text-right font-mono">
+              <% if row[:base_pct] && row[:temp_pct] %>
+                <span title="Base <%= number_with_precision(row[:base_value], precision: 2) %> · Temporary <%= number_with_precision(row[:temp_value], precision: 2) %>">
+                  <span class="text-slate-600"><%= number_with_precision(row[:base_pct], precision: 1) %>%</span>
+                  <span class="text-slate-400">/</span>
+                  <span class="text-amber-600"><%= number_with_precision(row[:temp_pct], precision: 1) %>%</span>
+                </span>
+              <% else %>
+                <span class="text-slate-400">—</span>
+              <% end %>
             </td>
 
             <%# Inline target edit %>
