@@ -149,7 +149,11 @@ class PortfolioPerformanceService
     # Since-inception compounds the entire series (its first day has no prior day).
     start_idx = daily.rindex { |d| d.date <= boundary }
     if start_idx.nil?
-      return PeriodResult.new(key: key, label: label, return_pct: nil, pnl: nil, available: false) unless key == :inception
+      # No point at/before the boundary. Trailing periods (1D..1Y) then have
+      # insufficient history => N/A. Calendar periods and since-inception fall back
+      # to the whole available series (i.e. "YTD" becomes "since inception" for a
+      # portfolio younger than the calendar boundary) rather than fabricating.
+      return PeriodResult.new(key: key, label: label, return_pct: nil, pnl: nil, available: false) if TRAILING.include?(key)
 
       start_idx = -1
     end
