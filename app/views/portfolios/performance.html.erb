@@ -43,7 +43,7 @@
 <%# Normalized comparison chart %>
 <div class="mt-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
      data-controller="perf-chart"
-     data-perf-chart-url-value="<%= portfolios_performance_series_path %>"
+     data-perf-chart-url-value="<%= api_portfolios_performance_series_path %>"
      data-perf-chart-role-value="<%= @position_role %>"
      data-perf-chart-portfolio-ids-value="<%= @selected_portfolio_ids.join(',') %>"
      data-perf-chart-range-value="<%= @chart_range %>">
