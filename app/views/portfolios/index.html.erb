@@ -43,6 +43,7 @@
         <th class="px-4 py-2 text-right">Unrealised</th>
         <th class="px-4 py-2 text-right">Realised</th>
         <th class="px-4 py-2 text-right">Total gain</th>
+        <th class="px-4 py-2 text-right" title="Base % / Temporary % of direct-equity value">Base / Temp</th>
       </tr>
     </thead>
     <tbody>
@@ -75,6 +76,17 @@
           <td class="px-4 py-2 text-right tabular-nums"><%= format_pnl_value(s[:unrealised_gain], precision: 2) %></td>
           <td class="px-4 py-2 text-right tabular-nums"><%= format_pnl_value(s[:realised_gain], precision: 2) %></td>
           <td class="px-4 py-2 text-right tabular-nums"><%= format_pnl_value(s[:total_gain], precision: 2) %></td>
+          <td class="px-4 py-2 text-right tabular-nums">
+            <% if s[:base_pct] && s[:temp_pct] %>
+              <span title="Base <%= number_with_precision(s[:base_value], precision: 2) %> · Temporary <%= number_with_precision(s[:temp_value], precision: 2) %>">
+                <span class="text-slate-600"><%= number_with_precision(s[:base_pct], precision: 1) %>%</span>
+                <span class="text-slate-400">/</span>
+                <span class="text-amber-600"><%= number_with_precision(s[:temp_pct], precision: 1) %>%</span>
+              </span>
+            <% else %>
+              <span class="text-slate-400">—</span>
+            <% end %>
+          </td>
         </tr>
       <% end %>
       <% if @summaries_by_portfolio.any? && @wealth_denominator_for_percent.positive? %>
@@ -90,10 +102,14 @@
           <td class="px-4 py-2 text-right tabular-nums text-slate-400">—</td>
           <td class="px-4 py-2 text-right tabular-nums text-slate-400">—</td>
           <td class="px-4 py-2 text-right tabular-nums text-slate-400">—</td>
+          <td class="px-4 py-2 text-right tabular-nums text-slate-400">—</td>
         </tr>
       <% end %>
       <% if @summaries_by_portfolio.any? %>
         <% o = @overall_stats %>
+        <% total_base = @summaries_by_portfolio.sum { |r| r[:stats][:base_value].to_d } %>
+        <% total_temp = @summaries_by_portfolio.sum { |r| r[:stats][:temp_value].to_d } %>
+        <% total_direct = total_base + total_temp %>
         <tr class="border-t-2 border-slate-200 bg-slate-50 font-medium">
           <td class="px-4 py-2">All portfolios</td>
           <td class="px-4 py-2 text-right tabular-nums"><%= number_with_precision(o[:total_value], precision: 2) %></td>
@@ -102,6 +118,17 @@
           <td class="px-4 py-2 text-right tabular-nums"><%= format_pnl_value(o[:unrealised_gain], precision: 2) %></td>
           <td class="px-4 py-2 text-right tabular-nums"><%= format_pnl_value(o[:realised_gain], precision: 2) %></td>
           <td class="px-4 py-2 text-right tabular-nums"><%= format_pnl_value(o[:total_gain], precision: 2) %></td>
+          <td class="px-4 py-2 text-right tabular-nums">
+            <% if total_direct.nonzero? %>
+              <span title="Base <%= number_with_precision(total_base, precision: 2) %> · Temporary <%= number_with_precision(total_temp, precision: 2) %>">
+                <span class="text-slate-600"><%= number_with_precision((total_base / total_direct) * 100, precision: 1) %>%</span>
+                <span class="text-slate-400">/</span>
+                <span class="text-amber-600"><%= number_with_precision((total_temp / total_direct) * 100, precision: 1) %>%</span>
+              </span>
+            <% else %>
+              <span class="text-slate-400">—</span>
+            <% end %>
+          </td>
         </tr>
       <% end %>
     </tbody>

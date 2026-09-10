@@ -8,6 +8,10 @@ class AssetSummaryService
     :current_value,
     :total_gain_pct,
     :weight_pct,
+    :base_value,
+    :temp_value,
+    :base_pct,
+    :temp_pct,
     :portfolio_names,
     :type_descriptor,
     keyword_init: true
@@ -33,6 +37,7 @@ class AssetSummaryService
       grouped.filter_map do |_asset_id, hs|
         asset = hs.first.asset
         calcs = hs.map { |h| HoldingsCalculatorService.for_holding(h) }
+        splits = hs.each_index.map { |i| PositionRoleService.for_holding(hs[i], calc: calcs[i]) }
         slices = hs.each_index.map { |i| role_slice(hs[i], calcs[i], role) }
         quantity = role == "all" ? hs.sum { |h| h.quantity.to_d } : slices.sum { |sl| sl[3] }
         next if role != "all" && quantity <= 0
@@ -43,6 +48,8 @@ class AssetSummaryService
           current_value: role == "all" ? calcs.sum(&:current_value) : slices.sum { |sl| sl[0] },
           cost: role == "all" ? calcs.sum(&:cost_basis) : slices.sum { |sl| sl[1] },
           total_gain: role == "all" ? calcs.sum(&:total_gain) : slices.sum { |sl| sl[2] },
+          base_value: splits.sum(&:base_value),
+          temp_value: splits.sum(&:temp_value),
           portfolio_names: hs.map { |h| h.portfolio.name }.uniq.sort.join(", "),
           type_descriptor: type_descriptor_for(asset)
         }
@@ -57,12 +64,18 @@ class AssetSummaryService
             (a[:current_value] / grand_total_value) * 100
           end
 
+        split_total = a[:base_value] + a[:temp_value]
+
         Row.new(
           asset: a[:asset],
           quantity: a[:quantity],
           current_value: a[:current_value],
           total_gain_pct: gain_percent(a[:total_gain], a[:cost]),
           weight_pct: weight_pct,
+          base_value: a[:base_value],
+          temp_value: a[:temp_value],
+          base_pct: split_total.nonzero? ? (a[:base_value] / split_total) * 100 : nil,
+          temp_pct: split_total.nonzero? ? (a[:temp_value] / split_total) * 100 : nil,
           portfolio_names: a[:portfolio_names],
           type_descriptor: a[:type_descriptor]
         )

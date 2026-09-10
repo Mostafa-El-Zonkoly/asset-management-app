@@ -142,6 +142,8 @@ class PortfolioStatsService
       by_sector = Hash.new(0.to_d)
       cost_by_sector = Hash.new(0.to_d)
       gain_by_sector = Hash.new(0.to_d)
+      base_by_sector = Hash.new(0.to_d)  # full base value split (independent of role filter)
+      temp_by_sector = Hash.new(0.to_d)  # full temporary value split
       qty_by_sector_asset = Hash.new { |h, k| h[k] = Hash.new(0.to_d) }       # total qty (watchlist detection)
       role_qty_by_sector_asset = Hash.new { |h, k| h[k] = Hash.new(0.to_d) }  # role qty (owned count under filter)
       ids = normalize_ids(portfolio_ids)
@@ -161,6 +163,10 @@ class PortfolioStatsService
         by_sector[sector] += v
         cost_by_sector[sector] += c
         gain_by_sector[sector] += g
+
+        sp = PositionRoleService.for_holding(h, calc: calc)
+        base_by_sector[sector] += sp.base_value
+        temp_by_sector[sector] += sp.temp_value
       end
 
       sectored_total = by_sector.values.sum
@@ -188,7 +194,11 @@ class PortfolioStatsService
           pct_of_included: pct_of_included,
           cost_basis: cost,
           unrealised_gain: gain,
-          gain_pct: gain_pct
+          gain_pct: gain_pct,
+          base_value: base_by_sector[sector],
+          temp_value: temp_by_sector[sector],
+          base_pct: (base_by_sector[sector] + temp_by_sector[sector]).nonzero? ? ((base_by_sector[sector] / (base_by_sector[sector] + temp_by_sector[sector])) * 100) : nil,
+          temp_pct: (base_by_sector[sector] + temp_by_sector[sector]).nonzero? ? ((temp_by_sector[sector] / (base_by_sector[sector] + temp_by_sector[sector])) * 100) : nil
         }
       end
     end
@@ -464,6 +474,8 @@ class PortfolioStatsService
     total_cost = 0.to_d
     unrealised = 0.to_d
     realised = 0.to_d
+    base_direct = 0.to_d  # Base value of direct-equity holdings only
+    temp_direct = 0.to_d  # Temporary value of direct-equity holdings only
 
     base_id = Currency.reporting_currency_id
 
@@ -474,6 +486,12 @@ class PortfolioStatsService
       total_value += r.current_value
       total_cost += r.cost_basis
       unrealised += r.unrealised_gain
+
+      next unless h.asset.direct_stock?
+
+      sp = PositionRoleService.for_holding(h, calc: r)
+      base_direct += sp.base_value
+      temp_direct += sp.temp_value
     end
 
     @portfolio.portfolio_transactions.where.not(realised_gain: nil).find_each do |t|
@@ -488,13 +506,19 @@ class PortfolioStatsService
     total_gain = unrealised + realised
     unreal_pct = total_cost.nonzero? ? ((unrealised / total_cost) * 100) : 0.to_d
 
+    direct_total = base_direct + temp_direct
+
     {
       total_value: total_value,
       total_cost: total_cost,
       unrealised_gain: unrealised,
       unrealised_gain_pct: unreal_pct,
       realised_gain: realised,
-      total_gain: total_gain
+      total_gain: total_gain,
+      base_value: base_direct,
+      temp_value: temp_direct,
+      base_pct: direct_total.nonzero? ? ((base_direct / direct_total) * 100) : nil,
+      temp_pct: direct_total.nonzero? ? ((temp_direct / direct_total) * 100) : nil
     }
   end
 
