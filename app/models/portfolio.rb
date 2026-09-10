@@ -13,6 +13,7 @@ class Portfolio < ApplicationRecord
   has_many :purification_entries, dependent: :destroy
 
   belongs_to :whole_target_type, class_name: "TargetType", optional: true
+  belongs_to :benchmark_market_index, class_name: "MarketIndex", optional: true
 
   # How this portfolio's Sharia purification (تطهير) list is segmented:
   #   aaoifi -> split by calendar quarter, day-weighted

@@ -33,6 +33,7 @@ class PortfolioSnapshotBackfillService
     Portfolio.active.find_each do |portfolio|
       portfolios += 1
       created += backfill_portfolio(portfolio, price_dates, reporting_id)
+      PortfolioSnapshotService.enrich_returns!(portfolio, base_id: reporting_id)
     end
 
     { created: created, portfolios: portfolios, dates: price_dates.size }

@@ -64,6 +64,7 @@ class AssetsController < ApplicationController
     @prices_total_pages = [(@price_rows.size.to_f / PRICE_ROWS_PER_PAGE).ceil, 1].max
     @prices_page = params.fetch(:prices_page, 1).to_i.clamp(1, @prices_total_pages)
     @prices_page_rows = @price_rows.reverse.slice((@prices_page - 1) * PRICE_ROWS_PER_PAGE, PRICE_ROWS_PER_PAGE) || []
+    @valuation = AssetEstimateSummaryService.call(@asset)
     @range_interval_pct = CHART_RANGE_KEYS.index_with do |key|
       series = AssetStatsService.price_series(@asset, range_key: key)
       AssetStatsService.interval_change_percent_for_series(series)

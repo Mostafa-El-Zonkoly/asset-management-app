@@ -1,0 +1,10 @@
+<% content_for :title, "New estimate — #{@asset.code}" %>
+<div class="mx-auto max-w-3xl">
+  <div class="flex items-center justify-between">
+    <h1 class="text-xl font-semibold">New estimate · <%= @asset.code %></h1>
+    <%= link_to "Back", asset_estimates_path(@asset), class: "text-sm text-blue-600 hover:underline" %>
+  </div>
+  <div class="mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <%= render "form", estimate: @estimate, form_url: asset_estimates_path(@asset), form_method: :post, submit_label: "Add estimate" %>
+  </div>
+</div>

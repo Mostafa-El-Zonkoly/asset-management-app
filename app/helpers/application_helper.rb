@@ -130,4 +130,27 @@ module ApplicationHelper
       tag.span(number_with_precision(value.to_d, precision: precision), class: "tabular-nums")
     end
   end
+  # "+12.7%" / "-3.1%" / "—" for an upside/percent value (nil-safe).
+  def format_upside(value)
+    return "—" if value.nil?
+
+    v = value.to_d
+    sign = v.positive? ? "+" : ""
+    "#{sign}#{number_with_precision(v, precision: 1)}%"
+  rescue ArgumentError, TypeError
+    "—"
+  end
+
+  # Small coloured pill for an estimate freshness symbol (:fresh/:aging/:stale).
+  def freshness_badge(freshness)
+    label, classes =
+      case freshness
+      when :fresh then ["Fresh", "bg-emerald-50 text-emerald-700"]
+      when :aging then ["Aging", "bg-amber-50 text-amber-700"]
+      when :stale then ["Stale", "bg-red-50 text-red-700"]
+      else ["—", "bg-slate-50 text-slate-500"]
+      end
+    tag.span(label, class: "rounded px-1.5 py-0.5 text-[10px] font-medium #{classes}")
+  end
+
 end

@@ -1,0 +1,71 @@
+<% content_for :title, "Valuation & targets — #{@asset.code}" %>
+<div class="flex items-center justify-between">
+  <div>
+    <h1 class="text-2xl font-semibold"><%= @asset.name %> <span class="text-slate-400">· <%= @asset.code %></span></h1>
+    <p class="text-sm text-slate-500">Valuation &amp; target estimates</p>
+  </div>
+  <div class="flex items-center gap-3 text-sm">
+    <%= link_to "Asset page", @asset, class: "text-blue-600 hover:underline" %>
+    <%= link_to "Add estimate", new_asset_estimate_path(@asset), class: "rounded-md bg-blue-600 px-3 py-2 font-medium text-white hover:bg-blue-700" %>
+  </div>
+</div>
+
+<div class="mt-4">
+  <%= render "assets/valuation_panel", summary: @summary, asset: @asset, manage: true %>
+</div>
+
+<%= search_form_for @q, url: asset_estimates_path(@asset), method: :get, class: "mt-6 flex flex-wrap items-end gap-2" do |f| %>
+  <%= f.select :estimate_type_eq, AssetEstimate::ESTIMATE_TYPE_LABELS.map { |k, v| [v, k] }, { include_blank: "Type" }, class: "rounded-md border border-slate-300 px-2 py-2 text-sm" %>
+  <%= f.select :data_role_eq, AssetEstimate::DATA_ROLE_LABELS.map { |k, v| [v, k] }, { include_blank: "Data role" }, class: "rounded-md border border-slate-300 px-2 py-2 text-sm" %>
+  <%= f.select :horizon_type_eq, AssetEstimate::HORIZON_TYPE_LABELS.map { |k, v| [v, k] }, { include_blank: "Horizon" }, class: "rounded-md border border-slate-300 px-2 py-2 text-sm" %>
+  <%= f.text_field :source_family_cont, placeholder: "Source family", class: "rounded-md border border-slate-300 px-2 py-2 text-sm" %>
+  <%= f.select :active_eq, [["Active", true], ["Historical", false]], { include_blank: "Active/Historical" }, class: "rounded-md border border-slate-300 px-2 py-2 text-sm" %>
+  <%= f.submit "Filter", class: "rounded-md bg-slate-800 px-3 py-2 text-sm text-white" %>
+  <%= link_to "Reset", asset_estimates_path(@asset), class: "px-2 py-2 text-sm text-slate-500 hover:underline" %>
+<% end %>
+
+<div class="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+  <table class="w-full text-left text-sm">
+    <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+      <tr>
+        <th class="px-3 py-2">Source</th>
+        <th class="px-3 py-2">Type</th>
+        <th class="px-3 py-2">Horizon</th>
+        <th class="px-3 py-2 text-right">Target</th>
+        <th class="px-3 py-2 text-right">Confidence</th>
+        <th class="px-3 py-2 text-right">Date</th>
+        <th class="px-3 py-2 text-center">Fresh</th>
+        <th class="px-3 py-2 text-center">Status</th>
+        <th class="px-3 py-2 text-right"></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% @estimates.each do |e| %>
+        <tr class="border-t border-slate-100 <%= 'opacity-60' unless e.active %>">
+          <td class="px-3 py-2">
+            <div class="font-medium text-slate-800"><%= e.source_name %></div>
+            <div class="text-[11px] text-slate-400">
+              <%= e.source_family.presence || "independent" %> · <%= e.data_role_label %>
+              <% if e.preferred %><span class="ml-1 rounded bg-blue-50 px-1 text-blue-700">preferred</span><% end %>
+            </div>
+          </td>
+          <td class="px-3 py-2"><%= e.estimate_type_label %></td>
+          <td class="px-3 py-2"><%= e.horizon_type_label %><%= " (#{e.horizon_days}d)" if e.horizon_days %></td>
+          <td class="px-3 py-2 text-right tabular-nums"><%= e.target_price ? "#{number_with_precision(e.target_price, precision: 2)} #{e.currency.code}" : "—" %></td>
+          <td class="px-3 py-2 text-right tabular-nums"><%= e.confidence_score ? number_with_precision(e.confidence_score, precision: 2) : "—" %></td>
+          <td class="px-3 py-2 text-right tabular-nums"><%= l e.estimate_date %></td>
+          <td class="px-3 py-2 text-center"><%= freshness_badge(e.freshness) %></td>
+          <td class="px-3 py-2 text-center"><%= e.active ? "Active" : "Historical" %></td>
+          <td class="px-3 py-2 text-right whitespace-nowrap">
+            <%= link_to "Edit", edit_asset_estimate_path(@asset, e), class: "text-blue-600 hover:underline" %>
+            <span class="mx-1 text-slate-300">|</span>
+            <%= button_to "Delete", asset_estimate_path(@asset, e), method: :delete, form: { class: "inline", data: { turbo_confirm: "Delete this estimate?" } }, class: "text-red-600 hover:underline" %>
+          </td>
+        </tr>
+      <% end %>
+      <% if @estimates.empty? %>
+        <tr><td colspan="9" class="px-3 py-6 text-center text-slate-500">No estimates match. <%= link_to "Add one", new_asset_estimate_path(@asset), class: "text-blue-600 hover:underline" %>.</td></tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>

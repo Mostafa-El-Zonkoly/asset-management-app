@@ -18,6 +18,7 @@ Rails.application.routes.draw do
       get :zakaa_statistics
       get :sector_analysis
       get :sector_speciality_analysis
+      get :performance
       get "sector_detail/:sector_id", action: :sector_detail, as: :sector_detail
       get "sector_detail/:sector_id/:speciality_id", action: :sector_speciality_detail, as: :sector_speciality_detail
     end
@@ -38,6 +39,7 @@ Rails.application.routes.draw do
       get :summary
       get :performance
     end
+    resources :estimates, controller: "asset_estimates", except: :show
   end
   resources :zaka_payments, except: :show
   resources :transactions, only: %i[index show new create edit update] do
@@ -91,6 +93,7 @@ Rails.application.routes.draw do
   end
 
   namespace :api, defaults: { format: :json } do
+    get "portfolios/performance_series", to: "portfolios#performance_series", as: :portfolios_performance_series
     get "portfolios/:id/performance", to: "portfolios#performance", as: :portfolio_performance
     get "portfolios/:id/allocation", to: "portfolios#allocation", as: :portfolio_allocation
     get "portfolios/:id/sector_breakdown", to: "portfolios#sector_breakdown", as: :portfolio_sector_breakdown
