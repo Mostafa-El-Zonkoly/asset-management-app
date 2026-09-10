@@ -42,6 +42,7 @@ Rails.application.routes.draw do
   resources :zaka_payments, except: :show
   resources :transactions, only: %i[index show new create edit update] do
     collection { get :lots }
+    member { patch :toggle_position_role }
   end
   resources :wallets, only: [:index]
 

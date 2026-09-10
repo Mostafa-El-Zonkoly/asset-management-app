@@ -25,6 +25,14 @@
             <%= t.transaction_type.label %>
             <% if t.buy? && t.position_role.present? %>
               <span class="ml-1 rounded px-1.5 py-0.5 text-[10px] font-medium <%= t.position_role == "temporary" ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-600" %>"><%= t.position_role_label %></span>
+              <% flip_to = t.position_role == "temporary" ? "base" : "temporary" %>
+              <%= button_to toggle_position_role_transaction_path(t),
+                    method: :patch,
+                    form: { class: "inline", data: { turbo_confirm: "Switch this buy to #{PortfolioTransaction::POSITION_ROLE_LABELS[flip_to]}?" } },
+                    class: "ml-1 rounded border border-slate-300 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 hover:bg-slate-100",
+                    title: "Switch to #{PortfolioTransaction::POSITION_ROLE_LABELS[flip_to]}" do %>
+                → <%= PortfolioTransaction::POSITION_ROLE_LABELS[flip_to] %>
+              <% end %>
             <% elsif t.sell? && t.sell_from.present? %>
               <span class="ml-1 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600" title="Sell from"><%= t.sell_from_label %></span>
             <% end %>
