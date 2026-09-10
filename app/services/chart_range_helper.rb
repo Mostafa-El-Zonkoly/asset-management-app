@@ -8,8 +8,10 @@ class ChartRangeHelper
       when "1w" then 1.week.ago.to_date..Date.current
       when "1m" then 1.month.ago.to_date..Date.current
       when "3m" then 3.months.ago.to_date..Date.current
+      when "6m" then 6.months.ago.to_date..Date.current
       when "1y" then 1.year.ago.to_date..Date.current
       when "ytd" then Date.current.beginning_of_year..Date.current
+      when "qtd" then Date.current.beginning_of_quarter..Date.current
       when "cw" then Date.current.beginning_of_week(:sunday)..Date.current
       when "cm" then Date.current.beginning_of_month..Date.current
       when "cy" then Date.current.beginning_of_year..Date.current

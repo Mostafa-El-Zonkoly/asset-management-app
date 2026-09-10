@@ -41,6 +41,7 @@ class PortfolioPerformanceService
   Row = Struct.new(
     :scope, :label, :current_value, :invested, :deposits, :withdrawals,
     :dividends, :daily_return, :daily_pnl, :periods, :inception, :as_of,
+    :final, :last_date,
     keyword_init: true
   )
 
@@ -62,15 +63,16 @@ class PortfolioPerformanceService
       rows
     end
 
-    # Normalised (base 100) value series per portfolio for the comparison chart.
-    # Returns { label => [[iso_date, indexed_value], ...] } over [from, to].
-    def normalized_series(portfolios, role: "all", from:, to: Date.current)
-      svc = new(base_id: Currency.reporting_currency_id)
-      portfolios.each_with_object({}) do |p, acc|
-        daily = svc.daily_for([p], role: role)
-        pts = svc.normalize(daily, from: from, to: to)
-        acc[p.name] = pts if pts.present?
-      end
+    # Normalised (base 100) comparison series for the chart. Uses COMPOUNDED
+    # cash-flow-adjusted returns (never raw values), so deposits/withdrawals never
+    # move a curve. mode: "own" (each starts at 100 on its own first in-window date)
+    # or "common" (all + benchmark start at 100 on the latest inception among the
+    # selected set). Returns { common_start:, series: [{label, kind, points}] } where
+    # each point is [iso_date, index, return_pct, value, pnl] (value/pnl nil for a
+    # benchmark). benchmark: include each portfolio's benchmark index as a series.
+    def normalized_series(portfolios, role: "all", from:, to: Date.current, mode: "own", benchmark: false)
+      new(base_id: Currency.reporting_currency_id)
+        .normalized_series(portfolios, role: role, from: from, to: to, mode: mode, benchmark: benchmark)
     end
 
     # Public period boundary dates (for aligning a benchmark to the same windows).
@@ -92,11 +94,17 @@ class PortfolioPerformanceService
                      deposits: 0.to_d, withdrawals: 0.to_d, dividends: 0.to_d,
                      daily_return: nil, daily_pnl: nil,
                      periods: PERIODS.to_h { |k, l| [k, PeriodResult.new(key: k, label: l, return_pct: nil, pnl: nil, available: false)] },
-                     inception: nil, as_of: as_of)
+                     inception: nil, as_of: as_of, final: true, last_date: nil)
     end
 
     last = daily.last
     inception = daily.first.date
+    last_date = last.date
+    # Final when the last data point is a stored EOD snapshot (or lies in the past);
+    # Intraday only when today's value is not yet a recorded snapshot. Uses the
+    # snapshot table as the session-status signal (no hardcoded market close).
+    snap_final = PortfolioSnapshot.where(portfolio_id: portfolios.map(&:id), date: last_date).count >= portfolios.size
+    final = last_date < Date.current || snap_final
     deposits = daily.sum { |d| d.external.positive? ? d.external : 0.to_d }
     withdrawals = daily.sum { |d| d.external.negative? ? -d.external : 0.to_d }
     dividends = daily.sum(&:dividend)
@@ -111,7 +119,8 @@ class PortfolioPerformanceService
       current_value: last.value, invested: invested,
       deposits: deposits, withdrawals: withdrawals, dividends: dividends,
       daily_return: last.daily_return, daily_pnl: last.daily_pnl,
-      periods: periods, inception: inception, as_of: as_of
+      periods: periods, inception: inception, as_of: as_of,
+      final: final, last_date: last_date
     )
   end
 
@@ -121,19 +130,79 @@ class PortfolioPerformanceService
     build_daily(values, flows)
   end
 
-  # Base-100 normalised series over [from, to] using compounded daily returns.
-  def normalize(daily, from:, to:)
+  # Instance entry point for the comparison chart (see class method docs).
+  def normalized_series(portfolios, role:, from:, to: Date.current, mode: "own", benchmark: false)
+    dailies = portfolios.map { |p| [p, daily_for([p], role: role).select { |d| d.date <= to }] }
+
+    start_on = nil
+    common = nil
+    if mode.to_s == "common"
+      firsts = dailies.filter_map { |_p, dd| window_first_date(dd, from, to) }
+      common = firsts.max
+      start_on = common
+    end
+
+    series = []
+    dailies.each do |p, dd|
+      pts = normalize(dd, from: from, to: to, start_on: start_on)
+      series << { label: p.name, kind: "portfolio", points: pts } if pts.present?
+    end
+
+    if benchmark
+      benchmark_indices(portfolios).each do |mi|
+        pts = normalize(benchmark_daily(mi), from: from, to: to, start_on: start_on)
+        series << { label: "#{mi.code} · benchmark", kind: "benchmark", points: pts } if pts.present?
+      end
+    end
+
+    { common_start: common&.iso8601, series: series }
+  end
+
+  # Base-100 normalised points over [from, to] using COMPOUNDED daily returns.
+  # start_on forces the base date (common-start mode); otherwise the first in-window
+  # day is the base. Each point: [iso, index, return_pct, value, cumulative_pnl].
+  def normalize(daily, from:, to:, start_on: nil)
     window = daily.select { |d| d.date >= from && d.date <= to }
+    window = window.select { |d| d.date >= start_on } if start_on
     return [] if window.size < 2
 
     idx = 100.to_d
-    out = [[window.first.date.iso8601, 100.0]]
+    cum = 0.to_d
+    first = window.first
+    out = [normalized_point(first.date, idx, 0.to_d, first.value, cum)]
     window.drop(1).each do |d|
-      r = d.daily_return || 0.to_d
-      idx *= (1 + r)
-      out << [d.date.iso8601, idx.to_f.round(2)]
+      idx *= (1 + (d.daily_return || 0.to_d))
+      cum += (d.daily_pnl || 0.to_d)
+      out << normalized_point(d.date, idx, idx - 100, d.value, cum)
     end
     out
+  end
+
+  private
+
+  def normalized_point(date, idx, ret, value, pnl)
+    [date.iso8601, idx.to_f.round(2), ret.to_f.round(2), value&.to_f&.round(2), pnl&.to_f&.round(2)]
+  end
+
+  def window_first_date(daily, from, to)
+    d = daily.find { |x| x.date >= from && x.date <= to }
+    d&.date
+  end
+
+  def benchmark_indices(portfolios)
+    portfolios.filter_map(&:benchmark_market_index).uniq
+  end
+
+  # A benchmark index as a daily-return series (no external flows: price return IS
+  # its time-weighted return). value = index level; pnl is N/A for an index.
+  def benchmark_daily(market_index)
+    prev = nil
+    IndexPrice.where(market_index_id: market_index.id).order(:date).pluck(:date, :price).map do |(d, price)|
+      lvl = price.to_d
+      r = (prev && prev.nonzero?) ? (lvl / prev - 1) : nil
+      prev = lvl
+      DayReturn.new(date: d, value: lvl, external: 0.to_d, dividend: 0.to_d, daily_return: r, daily_pnl: nil)
+    end
   end
 
   private

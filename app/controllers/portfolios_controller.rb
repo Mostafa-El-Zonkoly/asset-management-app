@@ -17,6 +17,27 @@ class PortfoliosController < ApplicationController
     @reporting_currency = Currency.base.first
     @rows = PortfolioPerformanceService.table(scope, role: @position_role)
     @period_defs = PortfolioPerformanceService::PERIODS
+    @chart_mode = params[:mode] == "common" ? "common" : "own"
+    @chart_benchmark = ActiveModel::Type::Boolean.new.cast(params[:benchmark])
+
+    # Benchmark returns/alpha per portfolio (only where a benchmark index is set),
+    # aligned to the same period boundaries the table uses. Combined row has none.
+    index_by_id = @portfolios.index_by(&:id)
+    @benchmark_by_portfolio_id = {}
+    @rows.each do |row|
+      next unless row.scope.is_a?(Portfolio)
+
+      portfolio = index_by_id[row.scope.id] || row.scope
+      index = portfolio.benchmark_market_index
+      next if index.nil? || row.inception.nil? || row.as_of.nil?
+
+      bounds = PortfolioPerformanceService.boundaries(as_of: row.as_of, inception: row.inception)
+      returns = @period_defs.to_h do |key, _l|
+        b = bounds[key]
+        [key, b ? IndexReturnService.percent(index, from: b, to: row.as_of) : nil]
+      end
+      @benchmark_by_portfolio_id[row.scope.id] = { index: index, returns: returns }
+    end
   end
 
   def funding_plan
