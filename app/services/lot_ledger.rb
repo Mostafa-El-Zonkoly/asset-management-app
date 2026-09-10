@@ -36,7 +36,8 @@ module LotLedger
           opened_on: lot.opened_on,
           buy_price_per_unit: lot.price,
           original_quantity: lot.original_qty,
-          remaining_quantity: lot.remaining_qty
+          remaining_quantity: lot.remaining_qty,
+          position_role: lot.position_role
         )
         rec.save!
         keep << lot.buy_id
@@ -133,7 +134,12 @@ module LotLedger
       id: tx.id,
       date: tx.date.to_date,
       qty: qty,
-      price: price
+      price: price,
+      # buys/stock_dividend carry their role (stock_dividend = base bonus shares)
+      position_role: key == "stock_dividend" ? "base" : tx.position_role,
+      # sells carry their consumption preference
+      sell_from: tx.sell_from,
+      sell_lot_buy_id: tx.sell_from_lot_buy_id
     }
   end
 end

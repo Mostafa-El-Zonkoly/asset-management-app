@@ -74,7 +74,8 @@ class PortfoliosController < ApplicationController
     @reporting_currency = Currency.base.first
     @missing_fx_codes = PortfolioStatsService.missing_fx_currency_codes_for_reporting
     @included_total = PortfolioStatsService.included_total_value(@selected_portfolio_ids.presence)
-    @sector_rows = PortfolioStatsService.cross_portfolio_sector_analysis(@selected_portfolio_ids.presence)
+    @position_role = position_role_param
+    @sector_rows = PortfolioStatsService.cross_portfolio_sector_analysis(@selected_portfolio_ids.presence, position_role: @position_role)
     @sectored_total = @sector_rows.sum { |r| r[:value] }
     @targets_by_sector_id = SectorTarget.all.index_by(&:sector_id)
     @total_target_pct = @targets_by_sector_id.values.sum { |t| t.target_percentage.to_d }
@@ -85,12 +86,14 @@ class PortfoliosController < ApplicationController
     @reporting_currency = Currency.base.first
     @missing_fx_codes = PortfolioStatsService.missing_fx_currency_codes_for_reporting
     @included_total = PortfolioStatsService.included_total_value(@selected_portfolio_ids.presence)
-    @sector_groups = PortfolioStatsService.cross_portfolio_sector_speciality_analysis(@selected_portfolio_ids.presence)
+    @position_role = position_role_param
+    @sector_groups = PortfolioStatsService.cross_portfolio_sector_speciality_analysis(@selected_portfolio_ids.presence, position_role: @position_role)
     @sectored_total = @sector_groups.sum { |g| g[:sector_total] }
   end
 
   def sector_detail
     set_portfolio_filter
+    @position_role = position_role_param
     @sector = Sector.find(params[:sector_id])
     @reporting_currency = Currency.base.first
     @included_total = PortfolioStatsService.included_total_value(@selected_portfolio_ids.presence)
@@ -100,6 +103,7 @@ class PortfoliosController < ApplicationController
 
   def sector_speciality_detail
     set_portfolio_filter
+    @position_role = position_role_param
     @sector = Sector.find(params[:sector_id])
     @speciality = Speciality.find(params[:speciality_id])
     @reporting_currency = Currency.base.first
@@ -175,6 +179,11 @@ class PortfoliosController < ApplicationController
   # (array or comma string), keeps only ids the current user owns, and exposes:
   #   @portfolios             - options for the filter control
   #   @selected_portfolio_ids - validated selection (empty => all portfolios)
+  def position_role_param
+    r = params[:position_role].to_s
+    %w[all base temporary].include?(r) ? r : "all"
+  end
+
   def set_portfolio_filter
     @portfolios = current_user.portfolios.order(:name)
     owned = @portfolios.ids

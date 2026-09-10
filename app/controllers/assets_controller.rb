@@ -10,7 +10,8 @@ class AssetsController < ApplicationController
     @asset_types = AssetType.where.not(key: "wallet").order(:position)
     @selected_type = params[:type].presence
     @selected_type = nil unless @asset_types.any? { |t| t.key == @selected_type }
-    data = AssetSummaryService.call(asset_type_key: @selected_type)
+    @position_role = %w[all base temporary].include?(params[:position_role].to_s) ? params[:position_role] : "all"
+    data = AssetSummaryService.call(asset_type_key: @selected_type, position_role: @position_role)
     @rows = data[:rows]
     @reporting_currency = data[:reporting_currency]
   end

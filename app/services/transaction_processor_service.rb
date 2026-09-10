@@ -255,7 +255,10 @@ class TransactionProcessorService
       realised_gain: attrs[:realised_gain],
       notes: attrs[:notes],
       transfer_pair_id: attrs[:transfer_pair_id],
-      exchange_rate_at_transaction: fx_rate
+      exchange_rate_at_transaction: fx_rate,
+      position_role: attrs[:position_role],
+      sell_from: attrs[:sell_from],
+      sell_from_lot_buy_id: attrs[:sell_from_lot_buy_id]
     )
   end
 

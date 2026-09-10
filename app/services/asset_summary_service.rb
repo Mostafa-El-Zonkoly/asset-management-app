@@ -14,12 +14,13 @@ class AssetSummaryService
   )
 
   class << self
-    def call(asset_type_key: nil)
-      new.call(asset_type_key: asset_type_key)
+    def call(asset_type_key: nil, position_role: "all")
+      new.call(asset_type_key: asset_type_key, position_role: position_role)
     end
   end
 
-  def call(asset_type_key: nil)
+  def call(asset_type_key: nil, position_role: "all")
+    role = position_role.to_s
     reporting = Currency.base.first
     holdings_scope = Holding.joins(asset: :asset_type).merge(Asset.active).where("holdings.quantity > 0")
       .where.not(asset_types: { key: "wallet" })
@@ -29,15 +30,19 @@ class AssetSummaryService
     grouped = holdings_scope.group_by(&:asset_id)
 
     aggregates =
-      grouped.map do |_asset_id, hs|
+      grouped.filter_map do |_asset_id, hs|
         asset = hs.first.asset
         calcs = hs.map { |h| HoldingsCalculatorService.for_holding(h) }
+        slices = hs.each_index.map { |i| role_slice(hs[i], calcs[i], role) }
+        quantity = role == "all" ? hs.sum { |h| h.quantity.to_d } : slices.sum { |sl| sl[3] }
+        next if role != "all" && quantity <= 0
+
         {
           asset: asset,
-          quantity: hs.sum { |h| h.quantity.to_d },
-          current_value: calcs.sum(&:current_value),
-          cost: calcs.sum(&:cost_basis),
-          total_gain: calcs.sum(&:total_gain),
+          quantity: quantity,
+          current_value: role == "all" ? calcs.sum(&:current_value) : slices.sum { |sl| sl[0] },
+          cost: role == "all" ? calcs.sum(&:cost_basis) : slices.sum { |sl| sl[1] },
+          total_gain: role == "all" ? calcs.sum(&:total_gain) : slices.sum { |sl| sl[2] },
           portfolio_names: hs.map { |h| h.portfolio.name }.uniq.sort.join(", "),
           type_descriptor: type_descriptor_for(asset)
         }
@@ -69,6 +74,19 @@ class AssetSummaryService
   end
 
   private
+
+  def role_slice(holding, calc, role)
+    if role == "all"
+      [calc.current_value.to_d, calc.cost_basis.to_d, calc.total_gain.to_d, holding.quantity.to_d]
+    else
+      sp = PositionRoleService.for_holding(holding, calc: calc)
+      if role == "temporary"
+        [sp.temp_value, sp.temp_cost, sp.temp_unrealised, sp.temp_qty]
+      else
+        [sp.base_value, sp.base_cost, sp.base_unrealised, sp.base_qty]
+      end
+    end
+  end
 
   def gain_percent(total_gain, cost_basis)
     return nil if cost_basis.nil?

@@ -1,7 +1,7 @@
 <% content_for :title, "New transaction" %>
 <h1 class="mb-6 text-2xl font-semibold">New transaction</h1>
 
-<%= form_with model: @transaction, url: transactions_path, class: "max-w-xl space-y-4", data: { controller: "total-calculator" } do |f| %>
+<%= form_with model: @transaction, url: transactions_path, class: "max-w-xl space-y-4", data: { controller: "total-calculator position-role" } do |f| %>
   <%= hidden_field_tag :return_to, "asset" if @return_to_asset %>
   <p class="text-sm text-slate-600">Portfolio is required for buy, sell, and dividends. Leave it blank for deposit, withdrawal, or transfer (wallets are global).</p>
   <div>
@@ -10,7 +10,7 @@
   </div>
   <div>
     <%= f.label :transaction_type_id, class: "block text-sm font-medium text-slate-900" %>
-    <%= f.collection_select :transaction_type_id, @transaction_types, :id, :label, {}, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+    <%= f.collection_select :transaction_type_id, @transaction_types, :id, :label, {}, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2", data: { "position-role-target": "type", action: "change->position-role#toggle" } %>
   </div>
   <%= render "shared/searchable_asset_field", form: f, method: :asset_id, collection: @assets, label: "Primary asset" %>
   <div>
@@ -24,7 +24,7 @@
   <div class="grid gap-4 md:grid-cols-2">
     <div>
       <%= f.label :quantity, class: "block text-sm font-medium text-slate-900" %>
-      <%= f.number_field :quantity, step: :any, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2", data: { "total-calculator-target": "quantity", action: "input->total-calculator#recalculate" } %>
+      <%= f.number_field :quantity, step: :any, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2", data: { "total-calculator-target": "quantity", "position-role-target": "quantity", action: "input->total-calculator#recalculate input->position-role#checkWarning" } %>
     </div>
     <div>
       <%= f.label :price_per_unit, class: "block text-sm font-medium text-slate-900" %>
@@ -55,6 +55,8 @@
       <p class="mt-1 text-xs text-slate-500">How many <strong><%= Currency.base.first&.code || "base" %></strong> per 1 unit of the transaction currency. Leave blank to auto-look up from exchange rate history.</p>
     </div>
   </div>
+  <%= render "position_role_fields", f: f %>
+
   <div>
     <%= f.label :notes, class: "block text-sm font-medium text-slate-900" %>
     <%= f.text_area :notes, rows: 2, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>

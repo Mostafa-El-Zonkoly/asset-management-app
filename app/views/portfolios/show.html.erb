@@ -189,7 +189,17 @@
             <td class="text-right tabular-nums" data-sort-value="<%= h.average_buy_price&.to_d || 0 %>">
               <%= h.average_buy_price ? "#{number_with_precision(h.average_buy_price, precision: 4)} #{ccy}" : "—" %>
             </td>
-            <td class="text-right tabular-nums" data-sort-value="<%= h.quantity %>"><%= number_with_precision(h.quantity, precision: 4) %></td>
+            <td class="text-right tabular-nums" data-sort-value="<%= h.quantity %>">
+              <%= number_with_precision(h.quantity, precision: 4) %>
+              <% if h.asset.direct_stock? %>
+                <% sp = PositionRoleService.for_holding(h, calc: r) %>
+                <% if sp.temp_qty.to_d.positive? %>
+                  <span class="mt-0.5 block text-[10px] font-normal leading-tight text-slate-500" title="Base <%= number_with_precision(sp.base_qty, precision: 4) %> (<%= number_with_precision(sp.base_pct, precision: 1) %>%) · Temporary <%= number_with_precision(sp.temp_qty, precision: 4) %> (<%= number_with_precision(sp.temp_pct, precision: 1) %>%)">
+                    B <%= number_with_precision(sp.base_qty, precision: 2) %> · <span class="text-amber-600">T <%= number_with_precision(sp.temp_qty, precision: 2) %></span>
+                  </span>
+                <% end %>
+              <% end %>
+            </td>
             <td class="text-right tabular-nums" data-sort-value="<%= r.cost_basis %>"><%= number_with_precision(r.cost_basis, precision: 2) %></td>
             <td class="text-right tabular-nums" data-sort-value="<%= r.current_price&.to_d || 0 %>">
               <%= r.current_price ? "#{number_with_precision(r.current_price, precision: 4)} #{ccy}" : "—" %>

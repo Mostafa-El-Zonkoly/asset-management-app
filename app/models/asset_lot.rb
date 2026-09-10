@@ -19,6 +19,8 @@ class AssetLot < ApplicationRecord
   scope :open,   -> { where("remaining_quantity > 0") }
   scope :closed, -> { where("remaining_quantity <= 0") }
   scope :chronological, -> { order(:opened_on, :buy_transaction_id) }
+  scope :base, -> { where(position_role: "base") }
+  scope :temporary, -> { where(position_role: "temporary") }
 
   def open?
     remaining_quantity.to_d.positive?

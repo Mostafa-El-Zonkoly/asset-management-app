@@ -91,6 +91,34 @@
       <%= f.text_area :notes, rows: 3, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
     </div>
   <% end %>
+  <% if @transaction.buy? %>
+    <div class="rounded-lg border border-slate-200 p-4">
+      <%= f.label :position_role, "Position role", class: "block text-sm font-medium text-slate-900" %>
+      <%= f.select :position_role,
+            PortfolioTransaction::POSITION_ROLES.map { |r| [PortfolioTransaction::POSITION_ROLE_LABELS[r], r] },
+            { selected: @transaction.position_role || "base" },
+            class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+      <p class="mt-1 text-xs text-slate-500">Base = permanent strategic position; Temporary = tactical add. Changing this re-tags this lot.</p>
+    </div>
+  <% elsif @transaction.sell? %>
+    <div class="space-y-3 rounded-lg border border-slate-200 p-4">
+      <div>
+        <%= f.label :sell_from, "Sell from", class: "block text-sm font-medium text-slate-900" %>
+        <%= f.select :sell_from,
+              PortfolioTransaction::SELL_FROMS.map { |r| [PortfolioTransaction::SELL_FROM_LABELS[r], r] },
+              { selected: @transaction.sell_from || "temporary_first" },
+              class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+      </div>
+      <div>
+        <%= f.label :sell_from_lot_buy_id, "Specific lot (only used when Sell from = Specific lot)", class: "block text-sm font-medium text-slate-900" %>
+        <%= f.select :sell_from_lot_buy_id,
+              (@open_lots || []).map { |l| ["#{l.opened_on} · #{format('%.4f', l.remaining_quantity.to_f)} @ #{format('%.4f', l.buy_price_per_unit.to_f)} · #{l.position_role.to_s.capitalize}", l.buy_transaction_id] },
+              { include_blank: "— none —", selected: @transaction.sell_from_lot_buy_id },
+              class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+      </div>
+    </div>
+  <% end %>
+
   <%= f.submit "Save changes", class: "rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700" %>
   <%= link_to "Cancel", transaction_path(@transaction), class: "ml-2 text-sm text-slate-600 hover:text-slate-900" %>
 <% end %>
