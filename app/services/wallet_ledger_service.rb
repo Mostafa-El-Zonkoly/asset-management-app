@@ -6,10 +6,20 @@ class WalletLedgerService
   class << self
     def balance(wallet_asset)
       wid = wallet_asset.id
-      PortfolioTransaction.includes(:transaction_type).where(
+      tx = PortfolioTransaction.includes(:transaction_type).where(
         "transactions.asset_id = :id OR transactions.related_wallet_id = :id OR transactions.transfer_to_wallet_id = :id",
         id: wid
       ).sum { |t| effect_on_wallet(t, wid) }
+      # Portfolio contributions/withdrawals move cash between this wallet and a
+      # portfolio, so they change the wallet balance too (no double-counting).
+      flows = PortfolioCashFlow.where(related_wallet_id: wid).sum do |f|
+        case f.kind
+        when "contribution" then -f.amount.to_d # wallet -> portfolio
+        when "withdrawal" then f.amount.to_d     # portfolio -> wallet
+        else 0.to_d
+        end
+      end
+      tx + flows
     end
 
     def effect_on_wallet(transaction, wallet_id)

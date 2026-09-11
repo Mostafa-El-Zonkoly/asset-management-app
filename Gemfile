@@ -9,6 +9,10 @@ gem "turbo-rails"
 gem "stimulus-rails"
 gem "tailwindcss-rails"
 gem "jbuilder"
+
+# Server-side, text-based (searchable) PDF reports
+gem "prawn", "~> 2.5"
+gem "prawn-table", "~> 0.2"
 gem "redis", ">= 4.0.1"
 gem "sidekiq", "~> 7.0"
 gem "sidekiq-cron", "~> 1.12"

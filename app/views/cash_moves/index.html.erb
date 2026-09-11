@@ -1,0 +1,31 @@
+<% content_for :title, "Cash moves" %>
+<div class="flex items-center justify-between">
+  <h1 class="text-2xl font-semibold">Cash moves</h1>
+  <%= link_to "Transfer cash", new_cash_move_path, class: "rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700" %>
+</div>
+<p class="mt-1 text-sm text-slate-500">External capital only — contributions, withdrawals and portfolio-to-portfolio transfers. These drive cumulative external capital, TWR and XIRR; buys/sells do not appear here.</p>
+
+<div class="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+  <table class="w-full text-left text-sm">
+    <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+      <tr><th class="px-3 py-2">Date</th><th>Portfolio</th><th>Kind</th><th>Counterparty</th><th class="text-right">Amount</th><th>Notes</th></tr>
+    </thead>
+    <tbody>
+      <% @flows.each do |f| %>
+        <tr class="border-t border-slate-100">
+          <td class="px-3 py-2 whitespace-nowrap"><%= l f.occurred_at, format: :short rescue f.occurred_at.to_s %></td>
+          <td><%= f.portfolio.name %></td>
+          <td>
+            <span class="rounded px-1.5 py-0.5 text-[10px] font-medium <%= f.contribution? ? 'bg-emerald-50 text-emerald-700' : (f.transfer? ? 'bg-slate-100 text-slate-600' : 'bg-amber-50 text-amber-700') %>"><%= f.kind_label %></span>
+          </td>
+          <td class="text-slate-600"><%= f.transfer? ? f.counterparty_portfolio&.name : f.related_wallet&.code %></td>
+          <td class="text-right tabular-nums"><%= number_with_precision(f.amount, precision: 2) %> <%= f.currency.code %></td>
+          <td class="text-slate-500"><%= f.notes %></td>
+        </tr>
+      <% end %>
+      <% if @flows.empty? %>
+        <tr><td colspan="6" class="px-3 py-6 text-center text-slate-500">No cash moves yet. <%= link_to "Record one", new_cash_move_path, class: "text-blue-600 hover:underline" %>.</td></tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>
