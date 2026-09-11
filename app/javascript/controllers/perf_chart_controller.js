@@ -9,7 +9,7 @@ const COLORS = [
 ]
 
 export default class extends Controller {
-  static targets = ["canvas", "rangeButton", "empty", "commonNote"]
+  static targets = ["canvas", "rangeButton", "empty", "commonNote", "viewButton"]
   static values = {
     url: String, role: String, portfolioIds: String, range: String,
     mode: String, benchmark: Boolean,
@@ -20,6 +20,8 @@ export default class extends Controller {
     this.range = this.rangeValue || "3m"
     this.mode = this.modeValue || "own"
     this.benchmark = this.benchmarkValue || false
+    this.view = "index"
+    this.payload = {}
     this.highlight(this.range)
     this.load()
   }
@@ -42,6 +44,20 @@ export default class extends Controller {
   toggleBenchmark(event) {
     this.benchmark = event.target.checked
     this.load()
+  }
+
+  setView(event) {
+    this.view = event.currentTarget.dataset.view
+    if (this.hasViewButtonTarget) {
+      this.viewButtonTargets.forEach((b) => {
+        const on = b.dataset.view === this.view
+        b.classList.toggle("bg-blue-600", on)
+        b.classList.toggle("text-white", on)
+        b.classList.toggle("bg-slate-100", !on)
+        b.classList.toggle("text-slate-700", !on)
+      })
+    }
+    this.render()
   }
 
   highlight(range) {
@@ -71,14 +87,19 @@ export default class extends Controller {
   }
 
   async load() {
-    let payload = {}
     try {
       const res = await fetch(this.buildUrl(), { headers: { Accept: "application/json" } })
-      payload = await res.json()
+      this.payload = await res.json()
     } catch {
-      payload = {}
+      this.payload = {}
     }
+    this.render()
+  }
+
+  render() {
+    const payload = this.payload || {}
     const series = Array.isArray(payload.series) ? payload.series : []
+    const drawdown = this.view === "drawdown"
 
     if (this.hasCommonNoteTarget) {
       if (this.mode === "common" && payload.common_start) {
@@ -104,9 +125,17 @@ export default class extends Controller {
     const datasets = series.map((s, i) => {
       const rowByDate = new Map(s.points.map((p) => [p[0], p]))
       const isBench = s.kind === "benchmark"
+      // Drawdown path: dd_t = index_t / runningMax - 1 (in %). Cash-flow neutral
+      // because the index itself is built from returns, not raw values.
+      let runMax = -Infinity
+      const ddByDate = new Map()
+      s.points.forEach((p) => { runMax = Math.max(runMax, p[1]); ddByDate.set(p[0], (p[1] / runMax - 1) * 100) })
       return {
         label: s.label,
-        data: labels.map((d) => (rowByDate.has(d) ? rowByDate.get(d)[1] : null)),
+        data: labels.map((d) => {
+          if (drawdown) return ddByDate.has(d) ? Number(ddByDate.get(d).toFixed(2)) : null
+          return rowByDate.has(d) ? rowByDate.get(d)[1] : null
+        }),
         _rows: labels.map((d) => rowByDate.get(d) || null),
         _isBench: isBench,
         borderColor: COLORS[i % COLORS.length],
@@ -154,7 +183,7 @@ export default class extends Controller {
         },
         scales: {
           x: { ticks: { maxTicksLimit: 8 } },
-          y: { title: { display: true, text: "Indexed (start = 100)" } },
+          y: { title: { display: true, text: drawdown ? "Drawdown %" : "Indexed (start = 100)" } },
         },
       },
     })

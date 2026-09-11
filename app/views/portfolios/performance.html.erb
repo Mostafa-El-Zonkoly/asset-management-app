@@ -7,6 +7,8 @@
   ordered  = trailing + calendar + longterm
   na_sort  = -99_999_999
   metric_val = ->(pr) { pr.available ? (@metric == "pnl" ? pr.pnl.to_f : pr.return_pct.to_f) : na_sort }
+  risk_cols = [[:volatility, "Volatility"], [:sharpe, "Sharpe"], [:sortino, "Sortino"], [:max_drawdown, "Max DD"], [:calmar, "Calmar"]]
+  rsort = ->(v) { v.nil? || v == :no_downside ? na_sort : v.to_f }
 %>
 <div class="flex flex-wrap items-center justify-between gap-3">
   <div>
@@ -24,6 +26,14 @@
   <div>
     <label class="block text-xs font-medium uppercase text-slate-500">Show</label>
     <%= select_tag :metric, options_for_select([["Return %", "pct"], ["P&L (#{@reporting_currency&.code})", "pnl"]], @metric), class: "mt-1 rounded-md border border-slate-300 px-2 py-2 text-sm" %>
+  </div>
+  <div>
+    <label class="block text-xs font-medium uppercase text-slate-500">Normalization</label>
+    <%= select_tag :mode, options_for_select([["Own inception", "own"], ["Common start", "common"]], @chart_mode), class: "mt-1 rounded-md border border-slate-300 px-2 py-2 text-sm" %>
+  </div>
+  <div>
+    <label class="block text-xs font-medium uppercase text-slate-500">Risk period</label>
+    <%= select_tag :risk_period, options_for_select(PortfolioRiskService::RISK_PERIODS.map { |k, l| [l, k] }, @risk_period), class: "mt-1 rounded-md border border-slate-300 px-2 py-2 text-sm" %>
   </div>
   <div class="min-w-[16rem] flex-1">
     <label class="block text-xs font-medium uppercase text-slate-500">Portfolios <span class="font-normal normal-case text-slate-400">(none = all)</span></label>
@@ -65,15 +75,16 @@
   </div>
 
   <div class="mt-3 flex flex-wrap items-center gap-4 text-sm">
-    <div class="inline-flex items-center gap-2">
-      <span class="text-xs font-medium uppercase text-slate-500">Normalization</span>
-      <label class="inline-flex items-center gap-1"><input type="radio" name="norm_mode" value="own" <%= "checked" if @chart_mode != "common" %> data-action="perf-chart#setMode"> <span>Own inception</span></label>
-      <label class="inline-flex items-center gap-1"><input type="radio" name="norm_mode" value="common" <%= "checked" if @chart_mode == "common" %> data-action="perf-chart#setMode"> <span>Common start</span></label>
+    <div class="inline-flex items-center gap-1">
+      <span class="text-xs font-medium uppercase text-slate-500">View</span>
+      <button type="button" data-perf-chart-target="viewButton" data-action="perf-chart#setView" data-view="index" class="rounded px-2 py-1 text-xs font-medium bg-blue-600 text-white">Index</button>
+      <button type="button" data-perf-chart-target="viewButton" data-action="perf-chart#setView" data-view="drawdown" class="rounded px-2 py-1 text-xs font-medium bg-slate-100 text-slate-700">Drawdown</button>
     </div>
     <label class="inline-flex items-center gap-1.5">
       <input type="checkbox" <%= "checked" if @chart_benchmark %> data-action="perf-chart#toggleBenchmark" class="rounded border-slate-300">
       <span>Show benchmarks</span>
     </label>
+    <span class="text-xs text-slate-400">Normalization: <strong><%= @chart_mode == "common" ? "Common start" : "Own inception" %></strong> (change above)</span>
     <p data-perf-chart-target="commonNote" hidden class="text-xs text-slate-500"></p>
   </div>
 
@@ -81,6 +92,49 @@
   <div class="mt-3" style="height:20rem"><canvas data-perf-chart-target="canvas"></canvas></div>
   <p class="mt-2 text-xs text-slate-400">Own inception: each series starts at 100 on its own first snapshot. Common start: all series (and benchmarks) rebased to 100 on the latest inception among the selected portfolios — the fair same-period comparison.</p>
 </div>
+
+<%# Risk summary cards + risk-vs-return scatter %>
+<% prisks = @rows.select { |r| r.scope.is_a?(Portfolio) && @risk_by_row&.dig(r.scope.id) }.map { |r| [r, @risk_by_row[r.scope.id]] } %>
+<% best = ->(sel) { cand = prisks.map { |r, rk| [r, sel.call(rk)] }.reject { |_r, v| v.nil? || v == :no_downside }; cand.max_by { |_r, v| v.to_f } } %>
+<% least_dd = ->{ cand = prisks.map { |r, rk| [r, rk.max_drawdown] }.reject { |_r, v| v.nil? }; cand.max_by { |_r, v| v.to_f } } %>
+<% cards = [
+     ["Best return", best.call(->(rk){ rk.total_return }), :ret],
+     ["Best Sharpe", best.call(->(rk){ rk.sharpe }), :ratio],
+     ["Best Sortino", best.call(->(rk){ rk.sortino }), :ratio],
+     ["Lowest drawdown", least_dd.call, :dd],
+     ["Best Calmar", best.call(->(rk){ rk.calmar }), :ratio]
+   ] %>
+<% if prisks.any? && cards.any? { |_l, pair, _k| pair } %>
+  <div class="mt-4 grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
+    <% cards.each do |label, pair, kind| %>
+      <div class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+        <p class="text-[11px] uppercase tracking-wide text-slate-500"><%= label %></p>
+        <% if pair %>
+          <p class="mt-1 truncate text-sm font-medium text-slate-800" title="<%= pair[0].label %>"><%= pair[0].label %></p>
+          <p class="mt-0.5 text-lg font-semibold tabular-nums">
+            <% v = pair[1] %>
+            <% case kind %>
+            <% when :ret %><span class="<%= pnl_class_for(v * 100) %>"><%= format_upside(v.to_d * 100) %></span>
+            <% when :dd %><%= risk_drawdown(v) %>
+            <% else %><%= number_with_precision(v, precision: 2) %>
+            <% end %>
+          </p>
+        <% else %>
+          <p class="mt-1 text-sm text-slate-300">N/A</p>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+<% end %>
+
+<% scatter_pts = prisks.filter_map { |r, rk| { label: r.label, x: (rk.volatility ? (rk.volatility * 100).to_f.round(2) : nil), y: (rk.annualized_return ? (rk.annualized_return * 100).to_f.round(2) : nil) } if rk.volatility && rk.annualized_return } %>
+<% if scatter_pts.size >= 1 %>
+  <div class="mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm" data-controller="risk-scatter" data-risk-scatter-points-value="<%= scatter_pts.to_json %>">
+    <h2 class="font-medium text-slate-900">Risk vs return <span class="text-xs font-normal text-slate-400">(annualized)</span></h2>
+    <div class="mt-3" style="height:18rem"><canvas data-risk-scatter-target="canvas"></canvas></div>
+    <p class="mt-2 text-xs text-slate-400">X = annualized volatility · Y = annualized return. Upper-left is better (more return per unit of risk). Only portfolios with ≥90 days of history appear.</p>
+  </div>
+<% end %>
 
 <%# Grouped period table %>
 <div class="mt-5 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -91,12 +145,16 @@
         <th colspan="5" class="border-l border-slate-200 px-4 py-2 text-center">Trailing returns</th>
         <th colspan="3" class="border-l border-slate-200 px-4 py-2 text-center">Calendar returns</th>
         <th colspan="1" class="border-l border-slate-200 px-4 py-2 text-center">Long term</th>
+        <th colspan="5" class="border-l-2 border-slate-300 px-4 py-2 text-center">Risk &amp; efficiency</th>
       </tr>
       <tr>
         <th class="sticky left-0 z-10 w-44 min-w-[11rem] bg-slate-50 px-4 py-2">Portfolio</th>
         <th class="sticky left-44 z-10 bg-slate-50 px-4 py-2 text-right">Value</th>
         <% ordered.each_with_index do |k, i| %>
           <th class="px-4 py-2 text-right <%= 'border-l border-slate-200' if [0, 5, 8].include?(i) %>" data-sort-value=""><%= labels[k] %></th>
+        <% end %>
+        <% risk_cols.each_with_index do |(k, label), i| %>
+          <th class="px-4 py-2 text-right <%= i.zero? ? 'border-l-2 border-slate-300' : '' %>"><%= label %></th>
         <% end %>
       </tr>
     </thead>
@@ -149,10 +207,26 @@
               <% end %>
             </td>
           <% end %>
+          <% rk = row.scope.is_a?(Portfolio) ? row.scope.id : (row.scope == :combined ? :combined : nil) %>
+          <% risk = rk && @risk_by_row ? @risk_by_row[rk] : nil %>
+          <% risk_cols.each_with_index do |(k, _label), i| %>
+            <% v = risk&.public_send(k) %>
+            <td class="px-4 py-3 text-right tabular-nums <%= i.zero? ? 'border-l-2 border-slate-200' : '' %>" data-sort-value="<%= rsort.call(v) %>">
+              <% if risk.nil? %>
+                <span class="text-slate-300" title="Insufficient history">N/A</span>
+              <% elsif k == :volatility %>
+                <%= risk_pct(v) %>
+              <% elsif k == :max_drawdown %>
+                <%= risk_drawdown(v) %>
+              <% else %>
+                <%= risk_ratio(v) %>
+              <% end %>
+            </td>
+          <% end %>
         </tr>
       <% end %>
       <% if @rows.all? { |r| r.current_value.nil? } %>
-        <tr><td colspan="11" class="px-4 py-6 text-center text-slate-500">No snapshot history yet. Values accrue daily; historical periods fill in as snapshots (or a reconstruction backfill) become available.</td></tr>
+        <tr><td colspan="16" class="px-4 py-6 text-center text-slate-500">No snapshot history yet. Values accrue daily; historical periods fill in as snapshots (or a reconstruction backfill) become available.</td></tr>
       <% end %>
     </tbody>
   </table>
@@ -163,4 +237,17 @@
   <span><strong>Calendar</strong> MTD/QTD/YTD anchor at the period start or inception (3M ≠ QTD, 1Y ≠ YTD).</span>
   <span><strong>Long term</strong> compounds the full history.</span>
   <span>Internal portfolio-to-portfolio moves net out in “All portfolios”.</span>
+</div>
+
+<div class="mt-4 rounded-xl border border-slate-200 bg-slate-50/60 p-4 text-xs text-slate-600">
+  <p class="mb-1 font-semibold text-slate-700">Risk &amp; efficiency — how these are computed</p>
+  <p>All risk metrics use the same cash-flow-adjusted daily returns as the table, over the selected <strong>Risk period</strong> (<%= PortfolioRiskService::RISK_PERIODS.to_h[@risk_period] %>) and, in Common start mode, the shared window — so deposits, withdrawals and internal transfers create no artificial volatility or drawdown. Risk-free rate used: <strong><%= number_with_precision(@risk_free_pct, precision: 2) %>% annual</strong> (<%= link_to "change", edit_settings_analytics_setting_path, class: "text-blue-600 hover:underline" %>).</p>
+  <ul class="mt-2 space-y-0.5">
+    <li><strong>Volatility</strong> — annualized standard deviation of daily returns (σ·√252). Neutral: neither good nor bad on its own.</li>
+    <li><strong>Sharpe</strong> — excess return (over the risk-free rate) per unit of total volatility.</li>
+    <li><strong>Sortino</strong> — excess return per unit of <em>downside</em> volatility only.</li>
+    <li><strong>Max drawdown</strong> — largest peak-to-trough decline of the compounded return index over the period.</li>
+    <li><strong>Calmar</strong> — annualized return ÷ |max drawdown|. Shown only with ≥90 days of history.</li>
+  </ul>
+  <p class="mt-2">Minimum history before a value is shown: Volatility 20 days · Sharpe/Sortino 30 days · Max DD 5 days · Calmar 90 days. Below that, the cell reads N/A rather than an annualized, misleading number. Interpretation depends on the market and period — treat these as analytical inputs, not verdicts.</p>
 </div>

@@ -75,6 +75,13 @@ class PortfolioPerformanceService
         .normalized_series(portfolios, role: role, from: from, to: to, mode: mode, benchmark: benchmark)
     end
 
+    # Raw cash-flow-adjusted daily return series for a scope (list of portfolios) +
+    # role. Consumed by PortfolioRiskService so risk metrics use exactly the same
+    # returns as the rest of the engine (consolidated = one series when many).
+    def daily_series(portfolios, role: "all")
+      new(base_id: Currency.reporting_currency_id).daily_for(portfolios, role: role)
+    end
+
     # Public period boundary dates (for aligning a benchmark to the same windows).
     def boundaries(as_of:, inception:)
       svc = new(base_id: nil)

@@ -38,6 +38,57 @@ class PortfoliosController < ApplicationController
       end
       @benchmark_by_portfolio_id[row.scope.id] = { index: index, returns: returns }
     end
+
+    build_risk_metrics(scope)
+  end
+
+  # Risk metrics per row, from the engine's cash-flow-adjusted daily returns.
+  # Honors Position Role, the chosen Risk Period, and — in Common Start mode —
+  # a shared window start (the latest inception among the selected portfolios),
+  # so comparisons cover the same period. Consolidated row uses one series.
+  def build_risk_metrics(scope_portfolios)
+    @risk_period = risk_period_param
+    @risk_free_pct = AnalyticsSetting.record.risk_free_rate_pct.to_d
+    as_of = @rows.map(&:as_of).compact.max || Date.current
+
+    common_start =
+      if @chart_mode == "common"
+        @rows.select { |r| r.scope.is_a?(Portfolio) && r.inception }.map(&:inception).max
+      end
+
+    @risk_by_row = {}
+    @rows.each do |row|
+      list = row.scope == :combined ? scope_portfolios : [row.scope]
+      next unless list.all? { |x| x.is_a?(Portfolio) }
+
+      daily = PortfolioPerformanceService.daily_series(list, role: @position_role)
+      from = risk_window_from(@risk_period, as_of, common_start, row.inception)
+      key = row.scope.is_a?(Portfolio) ? row.scope.id : :combined
+      @risk_by_row[key] = PortfolioRiskService.from_daily(
+        daily, risk_free_annual: @risk_free_pct, from: from, to: as_of
+      )
+    end
+  end
+
+  def risk_period_param
+    r = params[:risk_period].to_s.to_sym
+    PortfolioRiskService::RISK_PERIODS.map(&:first).include?(r) ? r : :inception
+  end
+
+  # Start date for a risk period; nil means "from inception" (whole series). In
+  # Common Start mode the window never begins before the shared common start.
+  def risk_window_from(period, as_of, common_start, inception)
+    base =
+      case period
+      when :m1 then as_of << 1
+      when :m3 then as_of << 3
+      when :m6 then as_of << 6
+      when :y1 then as_of << 12
+      when :ytd then as_of.beginning_of_year
+      else nil # inception
+      end
+    candidates = [base, common_start].compact
+    candidates.empty? ? nil : candidates.max
   end
 
   def funding_plan

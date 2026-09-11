@@ -153,4 +153,27 @@ module ApplicationHelper
     tag.span(label, class: "rounded px-1.5 py-0.5 text-[10px] font-medium #{classes}")
   end
 
+  # Neutral ratio (Sharpe/Sortino/Calmar): "1.42" / sentinel / "N/A".
+  def risk_ratio(value)
+    return content_tag(:span, "—", class: "text-slate-400", title: "No downside observations") if value == :no_downside
+    return content_tag(:span, "N/A", class: "text-slate-300", title: "Insufficient history") if value.nil?
+
+    content_tag(:span, number_with_precision(value, precision: 2), class: "tabular-nums text-slate-700")
+  end
+
+  # Neutral annualized/volatility percentage from a fraction: 0.184 -> "18.4%".
+  def risk_pct(fraction, precision: 1)
+    return content_tag(:span, "N/A", class: "text-slate-300", title: "Insufficient history") if fraction.nil?
+
+    content_tag(:span, "#{number_with_precision(fraction.to_d * 100, precision: precision)}%", class: "tabular-nums text-slate-700")
+  end
+
+  # Max-drawdown percentage (negative), red styling for the decline.
+  def risk_drawdown(fraction, precision: 1)
+    return content_tag(:span, "N/A", class: "text-slate-300", title: "Insufficient history") if fraction.nil?
+
+    cls = fraction.to_d.negative? ? "text-red-600 font-medium tabular-nums" : "text-slate-600 tabular-nums"
+    content_tag(:span, "#{number_with_precision(fraction.to_d * 100, precision: precision)}%", class: cls)
+  end
+
 end
