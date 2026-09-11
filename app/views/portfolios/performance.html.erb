@@ -113,9 +113,8 @@
           <p class="mt-1 truncate text-sm font-medium text-slate-800" title="<%= pair[0].label %>"><%= pair[0].label %></p>
           <p class="mt-0.5 text-lg font-semibold tabular-nums">
             <% v = pair[1] %>
-            <% case kind %>
-            <% when :ret %><span class="<%= pnl_class_for(v * 100) %>"><%= format_upside(v.to_d * 100) %></span>
-            <% when :dd %><%= risk_drawdown(v) %>
+            <% if kind == :ret %><span class="<%= pnl_class_for(v * 100) %>"><%= format_upside(v.to_d * 100) %></span>
+            <% elsif kind == :dd %><%= risk_drawdown(v) %>
             <% else %><%= number_with_precision(v, precision: 2) %>
             <% end %>
           </p>
