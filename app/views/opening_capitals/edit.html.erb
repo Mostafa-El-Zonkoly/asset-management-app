@@ -1,0 +1,28 @@
+<% content_for :title, "Opening capital" %>
+<div class="mx-auto max-w-3xl">
+  <h1 class="text-2xl font-semibold">Opening capital (migration baseline)</h1>
+  <p class="mt-1 text-sm text-slate-600">Historical buys are not contributions. Set each portfolio's real external capital and cash as of a migration date. From that date, record explicit contributions, withdrawals and transfers; before it, holdings plus opening cash represent the position. Nothing in your transaction history is changed. Amounts in <%= Currency.base.first&.code %>.</p>
+
+  <%= form_with url: opening_capitals_path, method: :patch, class: "mt-4 space-y-3" do %>
+    <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+      <table class="w-full text-left text-sm">
+        <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+          <tr><th class="px-3 py-2">Portfolio</th><th class="px-3 py-2">Opening external capital</th><th class="px-3 py-2">Opening cash</th><th class="px-3 py-2">Migration date</th></tr>
+        </thead>
+        <tbody>
+          <% @portfolios.each do |p| %>
+            <% rec = @by_portfolio[p.id] %>
+            <tr class="border-t border-slate-100">
+              <td class="px-3 py-2 font-medium"><%= p.name %></td>
+              <td class="px-3 py-2"><%= number_field_tag "openings[#{p.id}][opening_capital]", rec&.opening_capital, step: "any", min: 0, class: "w-40 rounded-md border border-slate-300 px-2 py-1.5" %></td>
+              <td class="px-3 py-2"><%= number_field_tag "openings[#{p.id}][opening_cash]", rec&.opening_cash, step: "any", min: 0, class: "w-40 rounded-md border border-slate-300 px-2 py-1.5" %></td>
+              <td class="px-3 py-2"><%= date_field_tag "openings[#{p.id}][migration_on]", rec&.migration_on || Date.current, class: "rounded-md border border-slate-300 px-2 py-1.5" %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+    <p class="text-xs text-slate-500">Tip: for a clean start today, set opening cash = the portfolio's current uninvested cash and opening external capital = the total real money you have put into that portfolio to date.</p>
+    <%= submit_tag "Save opening capital", class: "rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700" %>
+  <% end %>
+</div>

@@ -47,6 +47,9 @@ Rails.application.routes.draw do
     member { patch :toggle_position_role }
   end
   resources :wallets, only: [:index]
+  resources :cash_moves, only: %i[index new create]
+  resource :opening_capitals, only: %i[edit update], controller: "opening_capitals"
+  get "reports/portfolio", to: "reports#portfolio", as: :portfolio_report
 
   resources :purification_entries, only: %i[index update] do
     collection do

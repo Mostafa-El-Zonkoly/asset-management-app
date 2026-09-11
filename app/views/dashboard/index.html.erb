@@ -1,7 +1,11 @@
 <% content_for :title, "Dashboard" %>
 <div class="space-y-8">
   <div class="flex flex-wrap items-end justify-between gap-4">
-    <h1 class="text-2xl font-semibold text-slate-900">Dashboard</h1>
+    <div class="flex items-center gap-3">
+      <h1 class="text-2xl font-semibold text-slate-900">Dashboard</h1>
+      <%= link_to "Transfer cash", new_cash_move_path, class: "rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50" %>
+      <%= link_to "Export report", portfolio_report_path(format: :pdf), class: "rounded-md bg-slate-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700" %>
+    </div>
     <% if @portfolios.any? %>
       <%= form_with url: root_path, method: :get, class: "flex items-center gap-2", data: { turbo_frame: "_top" } do %>
         <label class="text-sm font-medium text-slate-900">Portfolio</label>

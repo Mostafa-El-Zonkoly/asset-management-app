@@ -11,6 +11,8 @@ class Portfolio < ApplicationRecord
   has_many :portfolio_snapshots, dependent: :destroy
   has_many :asset_lots, dependent: :destroy
   has_many :purification_entries, dependent: :destroy
+  has_many :portfolio_cash_flows, dependent: :destroy
+  has_one  :opening_capital, class_name: "PortfolioOpeningCapital", dependent: :destroy
 
   belongs_to :whole_target_type, class_name: "TargetType", optional: true
   belongs_to :benchmark_market_index, class_name: "MarketIndex", optional: true

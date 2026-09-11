@@ -211,6 +211,7 @@ class PortfoliosController < ApplicationController
     @free_cash_metrics = PortfolioStatsService.free_cash_target_metrics
     @reporting_currency = Currency.base.first
     @missing_fx_codes = PortfolioStatsService.missing_fx_currency_codes_for_reporting
+    @master = PortfolioMasterAccountingService.call(@summaries_by_portfolio.map { |r| r[:portfolio] })
   end
 
   def show
@@ -309,6 +310,9 @@ class PortfoliosController < ApplicationController
     @sharpe = PortfolioSharpeService.call(@portfolio)
     @perf = PortfolioPerformanceService.for_portfolio(@portfolio)
     @perf_period_defs = PortfolioPerformanceService::PERIODS
+    @accounting = PortfolioAccountingService.call(@portfolio)
+    @invest_twr = PortfolioInvestorReturnService.twr(@portfolio)
+    @invest_xirr = PortfolioInvestorReturnService.xirr(@portfolio)
     @benchmark = @portfolio.benchmark_market_index
     if @benchmark && @perf.inception && @perf.as_of
       bounds = PortfolioPerformanceService.boundaries(as_of: @perf.as_of, inception: @perf.inception)
