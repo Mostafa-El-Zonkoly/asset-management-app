@@ -109,6 +109,10 @@ Rails.application.routes.draw do
   get  "backup/import",  to: "backups#import",  as: :import_backup
   post "backup/restore", to: "backups#restore", as: :restore_backup
 
+  # Public, unauthenticated: pinged by an external scheduler to trigger a
+  # price fetch for all users' assets (see PublicController).
+  get "public/fetch_prices", to: "public#fetch_prices", as: :public_fetch_prices
+
   get "up" => "rails/health#show", as: :rails_health_check
   get "service-worker" => "rails/pwa#service_worker", as: :pwa_service_worker
   get "manifest" => "rails/pwa#manifest", as: :pwa_manifest
