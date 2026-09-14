@@ -176,4 +176,46 @@ module ApplicationHelper
     content_tag(:span, "#{number_with_precision(fraction.to_d * 100, precision: precision)}%", class: cls)
   end
 
+  # Editable DEFAULT sector guideline caps (soft risk limits, NOT allocation
+  # targets), keyed by down-cased sector label. Used only when no explicit cap is
+  # configured for the sector. Caps are independent and need not sum to 100%.
+  SECTOR_GUIDELINE_DEFAULTS = {
+    "consumer staples" => 18.0, "real estate" => 8.0,
+    "financial" => 15.0, "financials" => 15.0,
+    "communication" => 15.0, "communications" => 15.0, "communication services" => 15.0,
+    "energy" => 15.0, "materials" => 15.0,
+    "healthcare" => 12.0, "health care" => 12.0,
+    "industrials" => 15.0, "consumer discretionary" => 10.0
+  }.freeze
+
+  def default_sector_cap(label)
+    SECTOR_GUIDELINE_DEFAULTS[label.to_s.strip.downcase]
+  end
+
+  # Risk status of a sector's actual weight against its guideline cap.
+  # Being BELOW the cap is safe (never a buy signal). Returns nil when no cap.
+  #   :safe  actual <= 80% of cap
+  #   :watch 80% of cap < actual <= cap
+  #   :over  actual > cap
+  def sector_risk_status(actual, cap)
+    return nil if cap.nil? || cap <= 0
+
+    a = actual.to_f
+    c = cap.to_f
+    return :over if a > c
+    return :watch if a > 0.8 * c
+
+    :safe
+  end
+
+  # [label, text-class, bar-hex] for a risk status.
+  def sector_risk_style(status)
+    case status
+    when :safe  then ["SAFE", "text-emerald-700", "#10b981"]
+    when :watch then ["WATCH", "text-amber-700", "#f59e0b"]
+    when :over  then ["OVER CAP", "text-red-600", "#ef4444"]
+    else ["—", "text-slate-400", "#94a3b8"]
+    end
+  end
+
 end
