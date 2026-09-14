@@ -67,6 +67,11 @@ Rails.application.routes.draw do
   end
 
   namespace :settings do
+    resource :maintenance, only: :show, controller: "maintenance" do
+      post :clone_settings_template
+      post :reset_opening_capital
+      post :reset_cash_flows
+    end
     resource :free_cash_target, only: %i[edit update]
     resource :zaka_setting, only: %i[edit update]
     resource :core_scoring_setting, only: %i[edit update]
