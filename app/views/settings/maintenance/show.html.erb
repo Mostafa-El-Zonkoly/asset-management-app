@@ -1,0 +1,58 @@
+<% content_for :title, "Maintenance" %>
+<div class="mx-auto max-w-3xl space-y-6">
+  <div>
+    <h1 class="text-2xl font-semibold">Maintenance</h1>
+    <p class="mt-1 text-sm text-slate-600">Destructive tools for setting up or resetting this account. Each action asks for confirmation and only affects your own data.</p>
+  </div>
+
+  <%# 1) Settings template %>
+  <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <h2 class="font-medium text-slate-900">Settings template</h2>
+    <p class="mt-1 text-sm text-slate-600">
+      Clears your reference settings — sectors, subsectors (specialities), stock purposes, fund styles, management styles, categories and market indices — and clones them from the first (template) account. Global types (asset types, transaction types, etc.) are shared and unaffected.
+    </p>
+    <ul class="mt-2 text-xs text-slate-500">
+      <li>Your portfolios: <%= @portfolio_count %> · assets: <%= @asset_count %></li>
+    </ul>
+    <% if @is_template_user %>
+      <p class="mt-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">This is the template (first) account, so there is nothing to clone from here.</p>
+    <% elsif @asset_count.positive? %>
+      <p class="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">You have <%= @asset_count %> asset(s) that use these settings. Remove your assets first — cloning is blocked while assets exist, to avoid breaking references.</p>
+    <% end %>
+    <div class="mt-3">
+      <%= button_to "Clear & clone template settings",
+            clone_settings_template_settings_maintenance_path, method: :post,
+            form: { data: { turbo_confirm: "This will DELETE your current sectors, specialities, categories, market indices and classification lookups, then clone them from the template account. Continue?" } },
+            disabled: @is_template_user || @asset_count.positive?,
+            class: "rounded-md bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40" %>
+    </div>
+  </div>
+
+  <%# 2) Reset initial money %>
+  <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <h2 class="font-medium text-slate-900">Reset portfolio initial money</h2>
+    <p class="mt-1 text-sm text-slate-600">Removes every portfolio's opening-capital baseline (opening external capital, opening cash and migration date). Your transactions, holdings and cash moves are not touched.</p>
+    <p class="mt-1 text-xs text-slate-500">Opening-capital records set: <%= @opening_count %></p>
+    <div class="mt-3">
+      <%= button_to "Reset opening capital",
+            reset_opening_capital_settings_maintenance_path, method: :post,
+            form: { data: { turbo_confirm: "Delete the opening-capital baseline for all your portfolios? You can set them again afterwards." } },
+            disabled: @opening_count.zero?,
+            class: "rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40" %>
+    </div>
+  </div>
+
+  <%# 3) Reset cash moves %>
+  <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <h2 class="font-medium text-slate-900">Reset money additions &amp; changes</h2>
+    <p class="mt-1 text-sm text-slate-600">Removes all contributions, withdrawals and portfolio-to-portfolio transfers. Buys, sells, dividends and holdings are not touched.</p>
+    <p class="mt-1 text-xs text-slate-500">Cash moves recorded: <%= @cash_flow_count %></p>
+    <div class="mt-3">
+      <%= button_to "Reset cash moves",
+            reset_cash_flows_settings_maintenance_path, method: :post,
+            form: { data: { turbo_confirm: "Delete ALL contributions, withdrawals and transfers for your portfolios? This cannot be undone." } },
+            disabled: @cash_flow_count.zero?,
+            class: "rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-40" %>
+    </div>
+  </div>
+</div>
