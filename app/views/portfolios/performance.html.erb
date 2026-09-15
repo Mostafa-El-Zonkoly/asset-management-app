@@ -13,7 +13,7 @@
 <div class="flex flex-wrap items-center justify-between gap-3">
   <div>
     <h1 class="text-2xl font-semibold">Portfolio Performance</h1>
-    <p class="text-sm text-slate-500">Time-weighted returns (Modified Dietz, daily-compounded). Deposits &amp; withdrawals are not counted as return. Values in <%= @reporting_currency&.code %>.</p>
+    <p class="text-sm text-slate-500">Time-weighted returns (Modified Dietz, daily-compounded), reconstructed from your holdings and trades. <strong>Buys and sells are return-neutral</strong> — each trade moves value by exactly its cash amount, so purchases never show as profit; only price movement of what you hold counts. Values in <%= @reporting_currency&.code %>.</p>
   </div>
   <%= link_to "Back to portfolios", portfolios_path, class: "text-sm text-blue-600 hover:underline" %>
 </div>

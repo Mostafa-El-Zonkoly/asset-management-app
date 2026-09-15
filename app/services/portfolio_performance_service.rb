@@ -272,14 +272,23 @@ class PortfolioPerformanceService
   # Assemble the value + flow series for a scope, choosing stored snapshots for
   # role=all and reconstruction for role subsets.
   def value_and_flows(portfolios, role)
+    # Reconstruct the value + flow series from transactions and prices for every
+    # role (including "all"). The reconstruction values each holding at its own
+    # transaction price on trade days, so a buy/sell moves value by exactly its
+    # cash amount and nets to zero in Modified Dietz — robust regardless of whether
+    # a market snapshot was recorded that day. (Stored on-visit snapshots were
+    # sparse and mis-timed against trades, which showed purchases as profit.)
+    values, flows = merged_reconstructed(portfolios, role)
+    return [values, flows] if values.present?
+
+    # Last-resort fallback: stored snapshots (holdings market value) if there is no
+    # reconstructable history yet.
     if role.to_s == "all"
-      values = merged_snapshot_values(portfolios)
-      flows = PortfolioCashFlowService.call(portfolios.map(&:id), base_id: @base_id)
-      # Fallback to reconstruction if snapshots are absent.
-      return [values, flows] if values.present?
+      snaps = merged_snapshot_values(portfolios)
+      return [snaps, PortfolioCashFlowService.call(portfolios.map(&:id), base_id: @base_id)] if snaps.present?
     end
 
-    merged_reconstructed(portfolios, role)
+    [values, flows]
   end
 
   # Sum stored snapshot total_values across portfolios, aligned by the union of
