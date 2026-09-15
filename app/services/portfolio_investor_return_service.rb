@@ -68,10 +68,19 @@ class PortfolioInvestorReturnService
     return nil if values.size < 2
 
     flows = flow_series(portfolios, master: master)
+    # Bucket flows into the window ending at each NAV date (cursor over sorted flow
+    # dates), so a contribution/withdrawal dated between snapshots offsets its NAV
+    # jump instead of showing as return.
+    flow_dates = flows.keys.sort
+    fi = 0
     prev = nil
     factor = 1.to_d
     values.each do |(d, v)|
-      f = flows[d] || 0.to_d
+      f = 0.to_d
+      while fi < flow_dates.size && flow_dates[fi] <= d
+        f += flows[flow_dates[fi]]
+        fi += 1
+      end
       if prev
         denom = prev + (f * HALF)
         r = denom.zero? ? 0.to_d : ((v - prev - f) / denom)

@@ -330,11 +330,24 @@ class PortfolioPerformanceService
 
   # Modified Dietz daily returns over an aligned [[date, value], ...] series.
   def build_daily(values, flows)
+    # Bucket every external flow into the window ending at each snapshot date, so a
+    # buy/sell dated BETWEEN snapshots still offsets its holdings-value jump. A plain
+    # flows[d] lookup would drop flows on non-snapshot days and mis-count a purchase
+    # as investment return. Both series are ascending, so one cursor visits each
+    # flow exactly once.
+    flow_dates = flows.keys.sort
+    fi = 0
     prev = nil
     values.map do |(d, v)|
-      day = flows[d] || PortfolioCashFlowService::Day.new(external: 0.to_d, dividend: 0.to_d)
-      f = day.external
-      div = day.dividend
+      f = 0.to_d
+      div = 0.to_d
+      while fi < flow_dates.size && flow_dates[fi] <= d
+        day = flows[flow_dates[fi]]
+        f += day.external
+        div += day.dividend
+        fi += 1
+      end
+
       if prev.nil?
         row = DayReturn.new(date: d, value: v.to_d, external: f, dividend: div, daily_return: nil, daily_pnl: nil)
       else
