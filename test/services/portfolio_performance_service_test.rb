@@ -110,6 +110,25 @@ class PortfolioPerformanceServiceTest < ActiveSupport::TestCase
     assert_equal 100.0, pb.first[1]
   end
 
+  # Regression: a buy dated BETWEEN snapshots must not be counted as return.
+  # Snapshots on d1 (100) and d3 (200); a 100 buy on d2 (no snapshot that day).
+  test "a purchase on a non-snapshot day is not investment return" do
+    vals = [[d("2026-08-29"), bd(100)], [d("2026-08-31"), bd(200)]]
+    flows = flows(d("2026-08-30") => [100, 0])
+    daily = @svc.send(:build_daily, vals, flows)
+    res = @svc.send(:period_result, daily, :inception, "Since inception", daily.first.date)
+    assert_equal bd(0), res.return_pct.round(6), "holdings jump from a buy is offset, not profit"
+    assert_equal bd(0), daily.last.daily_pnl
+  end
+
+  # Multiple buys across a gap accumulate into the next snapshot window.
+  test "buys across a snapshot gap accumulate and offset the holdings jump" do
+    vals = [[d("2026-01-01"), bd(100)], [d("2026-01-10"), bd(350)]]
+    flows = flows(d("2026-01-03") => [80, 0], d("2026-01-06") => [70, 0])
+    daily = @svc.send(:build_daily, vals, flows)
+    assert_equal bd(100), daily.last.daily_pnl, "only the 100 market gain counts, not the 150 of buys"
+  end
+
   test "align_and_sum carries each series forward across gaps" do
     x = [[d("2026-01-01"), bd(100)], [d("2026-01-03"), bd(110)]]
     y = [[d("2026-01-02"), bd(50)]]
