@@ -65,6 +65,8 @@ Rails.application.routes.draw do
       post :fetch
     end
   end
+  # Manual entry of index closing levels (parallels prices#create for assets).
+  resources :index_prices, only: %i[create]
 
   namespace :settings do
     resource :maintenance, only: :show, controller: "maintenance" do

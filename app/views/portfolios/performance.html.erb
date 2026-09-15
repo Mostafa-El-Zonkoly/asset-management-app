@@ -16,7 +16,7 @@
 <div class="flex flex-wrap items-center justify-between gap-3">
   <div>
     <h1 class="text-2xl font-semibold">Portfolio Performance</h1>
-    <p class="text-sm text-slate-500">Time-weighted returns (Modified Dietz, daily-compounded), reconstructed from your holdings and trades. <strong>Buys and sells are return-neutral</strong> — each trade moves value by exactly its cash amount, so purchases never show as profit; only price movement of what you hold counts. Values in <%= @reporting_currency&.code %>.</p>
+    <p class="text-sm text-slate-500">All returns here are <strong>Time-Weighted Returns (TWR)</strong>: daily-compounded and cash-flow-neutral (Modified Dietz), reconstructed from your holdings and trades. <strong>Buys and sells are return-neutral</strong> — money entering a sleeve (a buy) or leaving it (a sell) moves value by exactly its cash amount, so contributions never show as profit and withdrawals never show as loss; only price movement of what you hold counts. This measures <em>strategy performance</em>. The separate <strong>XIRR / MWR</strong> column is the money-weighted <em>investor experience</em> (it includes the timing of money in and out). Values in <%= @reporting_currency&.code %>.</p>
   </div>
   <%= link_to "Back to portfolios", portfolios_path, class: "text-sm text-blue-600 hover:underline" %>
 </div>
@@ -155,17 +155,18 @@
     <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
       <tr>
         <th colspan="2" class="px-4 py-2"></th>
-        <th colspan="5" class="border-l border-slate-200 px-4 py-2 text-center">Trailing returns</th>
-        <th colspan="3" class="border-l border-slate-200 px-4 py-2 text-center">Calendar returns</th>
-        <th colspan="1" class="border-l border-slate-200 px-4 py-2 text-center">Long term</th>
+        <th colspan="5" class="border-l border-slate-200 px-4 py-2 text-center" title="Time-weighted returns — external contributions/withdrawals are neutralized and daily returns are geometrically chained.">Trailing TWR</th>
+        <th colspan="3" class="border-l border-slate-200 px-4 py-2 text-center" title="Time-weighted returns from the period start (or inception) through today; periods under a year are not annualized.">Calendar TWR</th>
+        <th colspan="2" class="border-l border-slate-200 px-4 py-2 text-center">Long term</th>
         <th colspan="5" class="border-l-2 border-slate-300 px-4 py-2 text-center">Risk &amp; efficiency</th>
       </tr>
       <tr>
         <th class="sticky left-0 z-10 w-44 min-w-[11rem] bg-slate-50 px-4 py-2">Portfolio</th>
         <th class="sticky left-44 z-10 bg-slate-50 px-4 py-2 text-right">Value</th>
         <% ordered.each_with_index do |k, i| %>
-          <th class="px-4 py-2 text-right <%= 'border-l border-slate-200' if [0, 5, 8].include?(i) %>" data-sort-value=""><%= labels[k] %></th>
+          <th class="px-4 py-2 text-right <%= 'border-l border-slate-200' if [0, 5, 8].include?(i) %>" data-sort-value="" title="<%= 'Time-weighted return since the first snapshot.' if k == :inception %>"><%= k == :inception ? "TWR (incep.)" : labels[k] %></th>
         <% end %>
+        <th class="px-4 py-2 text-right" title="Money-weighted (annualized IRR) since inception — the investor's actual experience, including the timing of money in and out. Not a TWR.">XIRR/MWR</th>
         <% risk_cols.each_with_index do |(k, label), i| %>
           <th class="px-4 py-2 text-right <%= i.zero? ? 'border-l-2 border-slate-300' : '' %>"><%= label %></th>
         <% end %>
@@ -229,6 +230,11 @@
               <% end %>
             </td>
           <% end %>
+          <%# XIRR / MWR (investor experience) — shown beside TWR, never merged. %>
+          <% xirr_v = row.scope.is_a?(Portfolio) ? @xirr_by_portfolio_id[row.scope.id] : (combined ? @xirr_combined : nil) %>
+          <td class="px-4 py-3 text-right tabular-nums" data-sort-value="<%= xirr_v.nil? ? na_sort : xirr_v.to_f %>" title="Annualized money-weighted return (IRR)">
+            <% if xirr_v %><span class="<%= pnl_class_for(xirr_v) %>"><%= format_upside(xirr_v) %></span><% else %><span class="text-slate-300">N/A</span><% end %>
+          </td>
           <% rk = row.scope.is_a?(Portfolio) ? row.scope.id : (row.scope == :combined ? :combined : nil) %>
           <% risk = rk && @risk_by_row ? @risk_by_row[rk] : nil %>
           <% risk_cols.each_with_index do |(k, _label), i| %>
@@ -248,7 +254,7 @@
         </tr>
       <% end %>
       <% if @rows.all? { |r| r.current_value.nil? } %>
-        <tr><td colspan="16" class="px-4 py-6 text-center text-slate-500">No snapshot history yet. Values accrue daily; historical periods fill in as snapshots (or a reconstruction backfill) become available.</td></tr>
+        <tr><td colspan="17" class="px-4 py-6 text-center text-slate-500">No snapshot history yet. Values accrue daily; historical periods fill in as snapshots (or a reconstruction backfill) become available.</td></tr>
       <% end %>
     </tbody>
 
@@ -256,7 +262,7 @@
     <% if @benchmark_rows.present? %>
       <tbody class="border-t-2 border-slate-300">
         <tr class="bg-slate-50">
-          <td colspan="16" class="px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+          <td colspan="17" class="px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
             Benchmarks <span class="font-normal normal-case text-slate-400">— market reference, not your portfolios</span>
           </td>
         </tr>
@@ -288,6 +294,9 @@
                 <% end %>
               </td>
             <% end %>
+            <td class="px-4 py-3 text-right tabular-nums" title="Indices have no investor cash flows">
+              <span class="text-slate-300">—</span>
+            </td>
             <% risk_cols.each_with_index do |(k, _label), i| %>
               <% v = risk&.public_send(k) %>
               <td class="px-4 py-3 text-right tabular-nums <%= i.zero? ? 'border-l-2 border-slate-200' : '' %>" data-sort-value="<%= rsort.call(v) %>">

@@ -7,8 +7,9 @@
     <%= f.text_field :name, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
   </div>
   <div>
-    <%= f.label :code, class: "block text-sm font-medium text-slate-900" %>
+    <%= f.label :code, "Display code", class: "block text-sm font-medium text-slate-900" %>
     <%= f.text_field :code, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+    <p class="mt-1 text-xs text-slate-400">Shown in the app (e.g. EGX30). Not used for fetching.</p>
   </div>
   <div>
     <%= f.label :description, class: "block text-sm font-medium text-slate-900" %>
@@ -18,5 +19,43 @@
     <%= f.label :currency_id, "Currency", class: "block text-sm font-medium text-slate-900" %>
     <%= f.collection_select :currency_id, @currencies, :id, :code, {}, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
   </div>
+
+  <fieldset class="rounded-md border border-slate-200 p-3">
+    <legend class="px-1 text-xs font-semibold uppercase text-slate-500">Fetching &amp; comparison</legend>
+
+    <div class="mt-2">
+      <%= f.label :fetch_code, "Fetch code", class: "block text-sm font-medium text-slate-900" %>
+      <%= f.text_field :fetch_code, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2", placeholder: "e.g. egx30 or SHARIAH" %>
+      <p class="mt-1 text-xs text-slate-400">Mubasher index handle. The price fetch reads <span class="font-mono">https://www.mubasher.info/markets/EGX/indices/&lt;fetch code&gt;/</span></p>
+    </div>
+
+    <div class="mt-3">
+      <%= f.label :source_identifier, "Full URL override (optional)", class: "block text-sm font-medium text-slate-900" %>
+      <%= f.text_field :source_identifier, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2", placeholder: "https://www.mubasher.info/markets/EGX/indices/egx30/" %>
+      <p class="mt-1 text-xs text-slate-400">Used instead of the built URL when set.</p>
+    </div>
+
+    <div class="mt-3">
+      <%= f.label :source, "Data source", class: "block text-sm font-medium text-slate-900" %>
+      <%= f.text_field :source, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2", placeholder: "mubasher" %>
+    </div>
+
+    <div class="mt-3">
+      <%= f.label :index_kind, "Index type", class: "block text-sm font-medium text-slate-900" %>
+      <%= f.select :index_kind, options_for_select([["Price index", "price"], ["Total-return index", "total_return"]], market_index.index_kind.presence || "price"), {}, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+      <p class="mt-1 text-xs text-slate-400">Price indices exclude dividends; used for the dividend note in comparisons.</p>
+    </div>
+
+    <label class="mt-3 flex items-center gap-2 text-sm">
+      <%= f.check_box :is_benchmark, class: "rounded border-slate-300" %>
+      <span>Show in Performance tab (benchmark overlay &amp; table)</span>
+    </label>
+
+    <label class="mt-2 flex items-center gap-2 text-sm">
+      <%= f.check_box :is_active, class: "rounded border-slate-300" %>
+      <span>Fetch this index in the daily price sweep</span>
+    </label>
+  </fieldset>
+
   <%= f.submit class: "rounded-md bg-blue-600 px-4 py-2 text-sm text-white" %>
 <% end %>

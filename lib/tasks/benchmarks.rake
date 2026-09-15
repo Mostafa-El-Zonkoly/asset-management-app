@@ -11,21 +11,25 @@
 #   rake "benchmarks:import_csv[EGX30,/path/close.csv]"  # backfill history (date,close)
 #   rake benchmarks:list                 # show configured benchmarks + latest level
 namespace :benchmarks do
-  # Definition of each benchmark. source_identifier is the Mubasher index URL its
-  # scraper reads (large, thousands-grouped levels — see Mubasher::IndexFetcher).
+  # Definition of each benchmark. `fetch_code` is the Mubasher index handle used to
+  # build the fetch URL (.../indices/<fetch_code>/); `source_identifier` is the
+  # explicit full URL (kept in sync here so either path fetches the same page).
+  # Levels are large, thousands-grouped numbers — see Mubasher::IndexFetcher.
   DEFS = [
     {
       code: "EGX30",
       name: "EGX 30",
       source: "mubasher",
-      source_identifier: "https://www.mubasher.info/markets/EGX/indices/EGX30",
+      fetch_code: "egx30",
+      source_identifier: "https://www.mubasher.info/markets/EGX/indices/egx30/",
       index_kind: "price"
     },
     {
       code: "EGX33",
       name: "EGX 33 Shariah Compliant Index",
       source: "mubasher",
-      source_identifier: "https://www.mubasher.info/markets/EGX/indices/SHARIAH",
+      fetch_code: "SHARIAH",
+      source_identifier: "https://www.mubasher.info/markets/EGX/indices/SHARIAH/",
       index_kind: "price"
     }
   ].freeze
@@ -46,6 +50,7 @@ namespace :benchmarks do
           name: d[:name],
           currency: currency,
           source: d[:source],
+          fetch_code: d[:fetch_code],
           source_identifier: d[:source_identifier],
           index_kind: d[:index_kind],
           is_benchmark: true,

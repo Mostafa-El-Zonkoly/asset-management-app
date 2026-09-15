@@ -33,7 +33,37 @@ class PortfoliosController < ApplicationController
     @benchmark_rows = @benchmarks.present? ? PortfolioPerformanceService.benchmark_rows(as_of: as_of, indices: @benchmarks) : []
 
     build_benchmark_comparison(as_of)
+    build_investor_returns(scope, as_of)
     build_risk_metrics(scope)
+  end
+
+  # Investor return (money-weighted / XIRR) per portfolio + combined, shown NEXT TO
+  # — never merged with — the time-weighted returns. TWR answers "how did the
+  # strategy perform" (external contributions/withdrawals neutralized); XIRR/MWR
+  # answers "what did the investor experience" (timing of money in/out included).
+  # The per-period TWR itself is the existing engine's compounded, cash-flow-neutral
+  # return (the `@rows` periods) — no separate TWR engine is introduced.
+  def build_investor_returns(scope_portfolios, as_of)
+    @xirr_by_portfolio_id = {}
+    @rows.each do |row|
+      next unless row.scope.is_a?(Portfolio)
+
+      @xirr_by_portfolio_id[row.scope.id] = safe_xirr { PortfolioInvestorReturnService.xirr(row.scope, as_of: as_of) }
+    end
+    @xirr_combined =
+      if scope_portfolios.size > 1
+        safe_xirr { PortfolioInvestorReturnService.xirr_master(scope_portfolios, as_of: as_of) }
+      end
+  end
+
+  # XIRR can legitimately fail to converge (returns a Result with a nil percent) or
+  # raise on sparse flows; never let it break the page — render N/A instead.
+  def safe_xirr
+    res = yield
+    res&.annualized_percent
+  rescue StandardError => e
+    Rails.logger.warn("performance XIRR failed: #{e.class} - #{e.message}")
+    nil
   end
 
   # Per-portfolio Excess Return vs EACH market benchmark, in percentage POINTS
