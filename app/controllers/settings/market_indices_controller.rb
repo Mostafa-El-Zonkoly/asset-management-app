@@ -50,7 +50,7 @@ module Settings
     def index_params
       params.require(:market_index).permit(
         :name, :code, :description, :currency_id,
-        :is_benchmark, :is_active, :source, :source_identifier, :index_kind
+        :is_benchmark, :is_active, :source, :fetch_code, :source_identifier, :index_kind
       )
     end
   end

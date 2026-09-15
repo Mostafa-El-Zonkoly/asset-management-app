@@ -5,8 +5,27 @@
 </div>
 <ul class="mt-6 space-y-2">
   <% @indices.each do |i| %>
-    <li class="flex justify-between rounded-lg border border-slate-200 bg-white px-4 py-3">
-      <div><span class="font-mono font-semibold"><%= i.code %></span> — <%= i.name %> <span class="text-slate-500">(<%= i.currency.code %>)</span></div>
+    <li class="flex items-start justify-between rounded-lg border border-slate-200 bg-white px-4 py-3">
+      <div>
+        <div>
+          <span class="font-mono font-semibold"><%= i.code %></span> — <%= i.name %>
+          <span class="text-slate-500">(<%= i.currency.code %>)</span>
+        </div>
+        <div class="mt-1 flex flex-wrap gap-1.5 text-[11px]">
+          <% if i.is_benchmark? %>
+            <span class="rounded bg-blue-50 px-1.5 py-0.5 font-medium text-blue-700">In Performance</span>
+          <% end %>
+          <% if i.is_active? %>
+            <span class="rounded bg-emerald-50 px-1.5 py-0.5 font-medium text-emerald-700">Fetched</span>
+          <% else %>
+            <span class="rounded bg-slate-100 px-1.5 py-0.5 font-medium text-slate-500">Fetch off</span>
+          <% end %>
+          <% if i.fetch_code.present? %>
+            <span class="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-slate-600">code: <%= i.fetch_code %></span>
+          <% end %>
+          <span class="rounded bg-slate-100 px-1.5 py-0.5 text-slate-600"><%= i.price_index? ? "Price" : "Total return" %></span>
+        </div>
+      </div>
       <div class="flex gap-2">
         <%= link_to "Edit", edit_settings_market_index_path(i), class: "text-sm" %>
         <%= button_to "Delete", settings_market_index_path(i), method: :delete, class: "text-sm text-red-600" %>

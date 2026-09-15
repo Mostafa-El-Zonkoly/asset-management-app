@@ -30,6 +30,36 @@
       <%= f.submit "Save price", class: "rounded-md bg-blue-600 px-4 py-2 text-sm text-white" %>
     <% end %>
   </div>
+
+  <%# Manual index level entry (mirrors the asset form; upserts per index+date). %>
+  <div id="add-index-price" class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm scroll-mt-20">
+    <h2 class="font-medium">Manual index level</h2>
+    <% index_options = @indices.map { |idx, _p| idx } %>
+    <% if index_options.present? %>
+      <%= form_with model: (@index_price || IndexPrice.new(date: Date.current)), url: index_prices_path, class: "mt-4 space-y-3" do |f| %>
+        <div>
+          <%= f.label :market_index_id, "Index", class: "block text-sm font-medium text-slate-900" %>
+          <%= f.collection_select :market_index_id, index_options, :id, ->(i) { "#{i.code} — #{i.name}" }, {}, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+        </div>
+        <div>
+          <%= f.label :date, class: "block text-sm font-medium text-slate-900" %>
+          <%= f.date_field :date, value: (f.object.date || Date.current), class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+        </div>
+        <div>
+          <%= f.label :price, "Closing level", class: "block text-sm font-medium text-slate-900" %>
+          <%= f.number_field :price, step: :any, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm", placeholder: "e.g. 54909.17" %>
+        </div>
+        <div>
+          <%= f.label :price_source_id, "Source", class: "block text-sm font-medium text-slate-900" %>
+          <%= f.collection_select :price_source_id, @price_sources, :id, :label, {}, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+        </div>
+        <%= f.submit "Save index level", class: "rounded-md bg-blue-600 px-4 py-2 text-sm text-white" %>
+      <% end %>
+      <p class="mt-2 text-xs text-slate-400">Re-entering an index and date updates that day's level (no duplicates). Use this to backfill history the daily fetch can't reach.</p>
+    <% else %>
+      <p class="mt-4 text-sm text-slate-500">No indices yet. Add one under <%= link_to "Settings → Market indices", settings_market_indices_path, class: "text-blue-600 hover:underline" %>.</p>
+    <% end %>
+  </div>
 </div>
 
 <div class="mt-10 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">

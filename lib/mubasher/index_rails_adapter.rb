@@ -14,8 +14,8 @@ module Mubasher
     end
 
     def fetch_and_persist!
-      url = @market_index.source_identifier.to_s.strip
-      raise Mubasher::FetchError, "index source_identifier (URL) is required" if url.empty?
+      url = @market_index.fetch_url.to_s.strip
+      raise Mubasher::FetchError, "index fetch_code or source_identifier (URL) is required" if url.empty?
 
       payload = @fetcher.fetch_level_from_url(url: url)
       price_source = resolve_price_source
