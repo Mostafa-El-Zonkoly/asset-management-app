@@ -3,6 +3,10 @@
 class PortfoliosController < ApplicationController
   before_action :set_portfolio, only: %i[show edit update destroy xirr toggle_active]
 
+  # Periods shown in the compact "Excess vs benchmark" block (kept short so the
+  # name cell stays readable). Full period set still drives the main table.
+  EXCESS_PERIODS = %i[m3 ytd y1 inception].freeze
+
   def performance
     @portfolios = current_user.portfolios.order(:name)
     owned = @portfolios.ids
@@ -20,32 +24,51 @@ class PortfoliosController < ApplicationController
     @chart_mode = params[:mode] == "common" ? "common" : "own"
     @chart_benchmark = ActiveModel::Type::Boolean.new.cast(params[:benchmark])
 
-    # Benchmark returns/alpha per portfolio (only where a benchmark index is set),
-    # aligned to the same period boundaries the table uses. Combined row has none.
-    index_by_id = @portfolios.index_by(&:id)
-    @benchmark_by_portfolio_id = {}
+    as_of = @rows.map(&:as_of).compact.max || Date.current
+
+    # Market benchmarks (EGX30, EGX33 Shariah) — comparison-only. Rows carry the
+    # MarketIndex as their scope, so they are naturally excluded from the
+    # portfolio-only leaderboard cards and every aggregation (spec #13/#17).
+    @benchmarks = MarketIndex.benchmarks.to_a
+    @benchmark_rows = @benchmarks.present? ? PortfolioPerformanceService.benchmark_rows(as_of: as_of, indices: @benchmarks) : []
+
+    build_benchmark_comparison(as_of)
+    build_risk_metrics(scope)
+  end
+
+  # Per-portfolio Excess Return vs EACH market benchmark, in percentage POINTS
+  # (spec #11): excess = portfolio_return - benchmark_return over the SAME window.
+  # Benchmark returns come from the same boundaries the table uses (carry-forward
+  # via IndexReturnService), so the two legs are directly comparable.
+  def build_benchmark_comparison(as_of)
+    @excess_by_portfolio_id = {}
+    return if @benchmarks.blank?
+
     @rows.each do |row|
       next unless row.scope.is_a?(Portfolio)
-
-      portfolio = index_by_id[row.scope.id] || row.scope
-      index = portfolio.benchmark_market_index
-      next if index.nil? || row.inception.nil? || row.as_of.nil?
+      next if row.inception.nil? || row.as_of.nil?
 
       bounds = PortfolioPerformanceService.boundaries(as_of: row.as_of, inception: row.inception)
-      returns = @period_defs.to_h do |key, _l|
-        b = bounds[key]
-        [key, b ? IndexReturnService.percent(index, from: b, to: row.as_of) : nil]
+      @excess_by_portfolio_id[row.scope.id] = @benchmarks.map do |mi|
+        returns = @period_defs.to_h do |key, _l|
+          b = bounds[key]
+          [key, b ? IndexReturnService.percent(mi, from: b, to: row.as_of) : nil]
+        end
+        excess = @period_defs.to_h do |key, _l|
+          pr = row.periods[key]
+          bench = returns[key]
+          [key, (pr&.available && bench) ? (pr.return_pct - bench) : nil]
+        end
+        { code: mi.code, index: mi, returns: returns, excess: excess }
       end
-      @benchmark_by_portfolio_id[row.scope.id] = { index: index, returns: returns }
     end
-
-    build_risk_metrics(scope)
   end
 
   # Risk metrics per row, from the engine's cash-flow-adjusted daily returns.
   # Honors Position Role, the chosen Risk Period, and — in Common Start mode —
   # a shared window start (the latest inception among the selected portfolios),
   # so comparisons cover the same period. Consolidated row uses one series.
+  # Benchmarks reuse the same window so their risk figures are comparable.
   def build_risk_metrics(scope_portfolios)
     @risk_period = risk_period_param
     @risk_free_pct = AnalyticsSetting.record.risk_free_rate_pct.to_d
@@ -65,6 +88,19 @@ class PortfoliosController < ApplicationController
       from = risk_window_from(@risk_period, as_of, common_start, row.inception)
       key = row.scope.is_a?(Portfolio) ? row.scope.id : :combined
       @risk_by_row[key] = PortfolioRiskService.from_daily(
+        daily, risk_free_annual: @risk_free_pct, from: from, to: as_of
+      )
+    end
+
+    # Benchmark risk (same window, same risk-free rate) so Max DD / Volatility /
+    # Sharpe / Sortino / Calmar render for EGX30 / EGX33 too, with N/A below the
+    # minimum-history thresholds.
+    @benchmark_risk_by_id = {}
+    @benchmark_rows.each do |row|
+      mi = row.scope
+      daily = PortfolioPerformanceService.benchmark_daily_series(mi)
+      from = risk_window_from(@risk_period, as_of, common_start, row.inception)
+      @benchmark_risk_by_id[mi.id] = PortfolioRiskService.from_daily(
         daily, risk_free_annual: @risk_free_pct, from: from, to: as_of
       )
     end

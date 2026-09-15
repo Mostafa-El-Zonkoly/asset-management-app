@@ -21,36 +21,40 @@ class PriceFetcherService
 
     def fetch_all(date: Date.current)
       assets = fetchable_assets
+      indices = BenchmarkPriceFetcherService.fetchable_indices
+      total = assets.size + indices.size
       results = []
       success = 0
       failed = 0
+      current = 0
 
-      assets.each_with_index do |asset, idx|
+      assets.each do |asset|
         results << fetch_one(asset, date: date)
-        if results.last[:ok]
-          success += 1
-        else
-          failed += 1
-        end
+        current += 1
+        results.last[:ok] ? success += 1 : failed += 1
+        yield({ current: current, total: total, success: success, failed: failed, asset_code: asset.code }) if block_given?
+      end
 
-        yield(
-          {
-            current: idx + 1,
-            total: assets.size,
-            success: success,
-            failed: failed,
-            asset_code: asset.code
-          }
-        ) if block_given?
+      # Benchmarks (EGX30, EGX33 Shariah, …) refresh in the SAME sweep, so the
+      # existing "fetch all prices" trigger and daily public job keep them current
+      # alongside assets. They never touch asset_prices or portfolio accounting.
+      index_results = []
+      indices.each do |mi|
+        r = BenchmarkPriceFetcherService.fetch_one(mi, date: date)
+        index_results << r
+        current += 1
+        r[:ok] ? success += 1 : failed += 1
+        yield({ current: current, total: total, success: success, failed: failed, asset_code: "#{mi.code} (index)" }) if block_given?
       end
 
       {
         ok: failed.zero?,
-        total: assets.size,
+        total: total,
         success: success,
         failed: failed,
         date: date,
-        results: results
+        results: results,
+        index_results: index_results
       }
     end
 

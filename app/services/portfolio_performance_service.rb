@@ -20,6 +20,12 @@ require "bigdecimal"
 #     portfolio moves (a sell in one + buy in another) cancel (#22).
 #   * Insufficient history for a period => nil (rendered "N/A"), never a fabricated
 #     number.
+#
+# Benchmarks (EGX30, EGX33 Shariah — see MarketIndex.benchmarks) are handled as a
+# SEPARATE, comparison-only overlay: a benchmark's daily series is its price return
+# (no external flows), normalised and rebased to the SAME comparison start as the
+# portfolios. Benchmarks NEVER enter a portfolio's value, "All portfolios",
+# allocation, cash, flows, XIRR or any portfolio card (spec #13/#14).
 class PortfolioPerformanceService
   HALF = BigDecimal("0.5")
 
@@ -63,13 +69,28 @@ class PortfolioPerformanceService
       rows
     end
 
+    # Comparison-only rows for the market benchmarks (EGX30, EGX33 Shariah). Each
+    # row's scope is the MarketIndex itself, so it is trivially excluded from every
+    # portfolio-only card and aggregation. Empty when no benchmarks are configured.
+    def benchmark_rows(as_of: Date.current, indices: nil)
+      list = indices || MarketIndex.benchmarks.to_a
+      svc = new(base_id: Currency.reporting_currency_id)
+      list.map { |mi| svc.benchmark_row(mi, as_of: as_of) }
+    end
+
+    # A benchmark's cash-flow-free daily-return series (price return IS its TWR).
+    # Consumed by PortfolioRiskService for benchmark risk metrics.
+    def benchmark_daily_series(market_index)
+      new(base_id: nil).benchmark_daily(market_index)
+    end
+
     # Normalised (base 100) comparison series for the chart. Uses COMPOUNDED
     # cash-flow-adjusted returns (never raw values), so deposits/withdrawals never
     # move a curve. mode: "own" (each starts at 100 on its own first in-window date)
-    # or "common" (all + benchmark start at 100 on the latest inception among the
+    # or "common" (all + benchmarks start at 100 on the latest inception among the
     # selected set). Returns { common_start:, series: [{label, kind, points}] } where
     # each point is [iso_date, index, return_pct, value, pnl] (value/pnl nil for a
-    # benchmark). benchmark: include each portfolio's benchmark index as a series.
+    # benchmark). benchmark: append the market benchmark index series.
     def normalized_series(portfolios, role: "all", from:, to: Date.current, mode: "own", benchmark: false)
       new(base_id: Currency.reporting_currency_id)
         .normalized_series(portfolios, role: role, from: from, to: to, mode: mode, benchmark: benchmark)
@@ -131,6 +152,34 @@ class PortfolioPerformanceService
     )
   end
 
+  # A benchmark index as a comparison-only Row (scope = the MarketIndex). Period
+  # returns compound the index's own daily returns — identical to its simple price
+  # return over each window, and directly comparable to a portfolio's TWR. No
+  # invested/flows/dividends (an index has none); current_value = latest level.
+  def benchmark_row(market_index, as_of:)
+    daily = benchmark_daily(market_index).select { |d| d.date <= as_of }
+    if daily.empty?
+      return Row.new(scope: market_index, label: market_index.code, current_value: nil,
+                     invested: 0.to_d, deposits: 0.to_d, withdrawals: 0.to_d, dividends: 0.to_d,
+                     daily_return: nil, daily_pnl: nil,
+                     periods: PERIODS.to_h { |k, l| [k, PeriodResult.new(key: k, label: l, return_pct: nil, pnl: nil, available: false)] },
+                     inception: nil, as_of: as_of, final: true, last_date: nil)
+    end
+
+    last = daily.last
+    inception = daily.first.date
+    periods = PERIODS.to_h { |key, plabel| [key, period_result(daily, key, plabel, inception)] }
+
+    Row.new(
+      scope: market_index, label: market_index.code,
+      current_value: last.value, invested: 0.to_d,
+      deposits: 0.to_d, withdrawals: 0.to_d, dividends: 0.to_d,
+      daily_return: last.daily_return, daily_pnl: nil,
+      periods: periods, inception: inception, as_of: as_of,
+      final: last.date < Date.current, last_date: last.date
+    )
+  end
+
   # Daily return series for a scope (list of portfolios) + role.
   def daily_for(portfolios, role:)
     values, flows = value_and_flows(portfolios, role)
@@ -145,6 +194,9 @@ class PortfolioPerformanceService
     common = nil
     if mode.to_s == "common"
       firsts = dailies.filter_map { |_p, dd| window_first_date(dd, from, to) }
+      # The common start must be a date every SELECTED PORTFOLIO can be rebased on
+      # (the latest portfolio inception in-window). Benchmarks, being reference
+      # series, are rebased onto that same date — they never move it (spec #5).
       common = firsts.max
       start_on = common
     end
@@ -185,23 +237,11 @@ class PortfolioPerformanceService
     out
   end
 
-  private
-
-  def normalized_point(date, idx, ret, value, pnl)
-    [date.iso8601, idx.to_f.round(2), ret.to_f.round(2), value&.to_f&.round(2), pnl&.to_f&.round(2)]
-  end
-
-  def window_first_date(daily, from, to)
-    d = daily.find { |x| x.date >= from && x.date <= to }
-    d&.date
-  end
-
-  def benchmark_indices(portfolios)
-    portfolios.filter_map(&:benchmark_market_index).uniq
-  end
-
   # A benchmark index as a daily-return series (no external flows: price return IS
-  # its time-weighted return). value = index level; pnl is N/A for an index.
+  # its time-weighted return). value = index level; pnl is N/A for an index. Uses
+  # actual trading-day observations only — no interpolation or fabricated closes
+  # (spec #6); carry-forward for non-trading dates happens at read time in
+  # IndexReturnService, not here.
   def benchmark_daily(market_index)
     prev = nil
     IndexPrice.where(market_index_id: market_index.id).order(:date).pluck(:date, :price).map do |(d, price)|
@@ -213,6 +253,22 @@ class PortfolioPerformanceService
   end
 
   private
+
+  def normalized_point(date, idx, ret, value, pnl)
+    [date.iso8601, idx.to_f.round(2), ret.to_f.round(2), value&.to_f&.round(2), pnl&.to_f&.round(2)]
+  end
+
+  def window_first_date(daily, from, to)
+    d = daily.find { |x| x.date >= from && x.date <= to }
+    d&.date
+  end
+
+  # The market benchmarks to overlay on the chart: the globally-flagged EGX30 /
+  # EGX33 Shariah set, NOT each portfolio's individually-assigned tracking index.
+  # "Show benchmarks" always shows both, independent of portfolio selection (#8).
+  def benchmark_indices(_portfolios)
+    MarketIndex.benchmarks.to_a
+  end
 
   def period_result(daily, key, label, inception)
     as_of = daily.last.date
