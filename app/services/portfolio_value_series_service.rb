@@ -68,11 +68,28 @@ class PortfolioValueSeriesService
     end
 
     inception = txns.map { |t| t.date.to_date }.min
-    price_dates = AssetPrice.distinct.where("date >= ?", inception).order(:date).pluck(:date)
+
+    # Effective transaction price per asset per trade day (total_amount / qty), so
+    # the holdings value on a trade day moves by exactly the cash amount of the
+    # trade. This makes a BUY (or SELL) return-neutral regardless of whether a
+    # market price was recorded that day: the value jump equals the flow and
+    # Modified Dietz nets it to zero. Value points are also added on trade days so
+    # every trade lands on the daily series.
+    tx_price_points = tx_effective_prices(by_asset)
+
+    market_dates = AssetPrice.distinct.where("date >= ?", inception).order(:date).pluck(:date)
+    tx_dates = tx_price_points.values.flat_map(&:keys)
+    price_dates = (market_dates + tx_dates).uniq.select { |d| d >= inception }.sort
     return Series.new(values: [], flows: flows_for(txns, sell_role_fraction, by_asset), inception: inception) if price_dates.empty?
 
     price_series = by_asset.keys.index_with do |aid|
-      AssetPrice.where(asset_id: aid, currency_id: assets[aid].currency_id).order(:date).pluck(:date, :price)
+      merged = {}
+      AssetPrice.where(asset_id: aid, currency_id: assets[aid].currency_id).order(:date).pluck(:date, :price).each do |dt, pr|
+        merged[dt] = pr.to_d
+      end
+      # Transaction price wins on its own day (guarantees value jump == cash flow).
+      (tx_price_points[aid] || {}).each { |dt, pr| merged[dt] = pr }
+      merged.sort_by(&:first)
     end
 
     # Cumulative role qty per asset, marched forward across price dates.
@@ -167,6 +184,27 @@ class PortfolioValueSeriesService
       role_q += rem if role_match?(lot.position_role)
     end
     total.nonzero? ? (role_q / total) : 0.to_d
+  end
+
+  # { asset_id => { Date => effective_price } } from cash-settled trades, where
+  # effective_price = SUM(total_amount) / SUM(quantity) for that asset on that day,
+  # in the asset's own currency (buys/sells are recorded in the asset currency).
+  def tx_effective_prices(by_asset)
+    out = {}
+    by_asset.each do |aid, asset_txns|
+      by_date = Hash.new { |h, k| h[k] = { amt: 0.to_d, qty: 0.to_d } }
+      asset_txns.each do |t|
+        next unless %w[buy sell].include?(t.transaction_type.key)
+
+        d = t.date.to_date
+        by_date[d][:amt] += t.total_amount.to_d
+        by_date[d][:qty] += t.quantity.to_d
+      end
+      prices = {}
+      by_date.each { |d, h| prices[d] = h[:amt] / h[:qty] if h[:qty].nonzero? }
+      out[aid] = prices if prices.any?
+    end
+    out
   end
 
   def ledger_txns
