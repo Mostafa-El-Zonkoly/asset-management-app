@@ -10,9 +10,17 @@ class PortfoliosController < ApplicationController
   def performance
     @portfolios = current_user.portfolios.order(:name)
     owned = @portfolios.ids
-    raw = params[:portfolio_ids]
-    raw = raw.to_s.split(",") if raw.is_a?(String)
-    @selected_portfolio_ids = Array(raw).map(&:to_i).uniq & owned
+    active_ids = @portfolios.select(&:active?).map(&:id)
+    if params.key?(:portfolio_ids)
+      # The user made an explicit selection (Apply). Honour it exactly.
+      raw = params[:portfolio_ids]
+      raw = raw.to_s.split(",") if raw.is_a?(String)
+      @selected_portfolio_ids = Array(raw).map(&:to_i).uniq & owned
+    else
+      # First visit / no explicit filter: pre-select ACTIVE portfolios only.
+      # (Inactive ones still appear in the list, unchecked, so they can be added.)
+      @selected_portfolio_ids = active_ids
+    end
     scope = @selected_portfolio_ids.present? ? @portfolios.where(id: @selected_portfolio_ids).to_a : @portfolios.to_a
 
     @position_role = position_role_param

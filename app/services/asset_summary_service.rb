@@ -18,12 +18,12 @@ class AssetSummaryService
   )
 
   class << self
-    def call(asset_type_key: nil, position_role: "all")
-      new.call(asset_type_key: asset_type_key, position_role: position_role)
+    def call(asset_type_key: nil, position_role: "all", portfolio_ids: nil)
+      new.call(asset_type_key: asset_type_key, position_role: position_role, portfolio_ids: portfolio_ids)
     end
   end
 
-  def call(asset_type_key: nil, position_role: "all")
+  def call(asset_type_key: nil, position_role: "all", portfolio_ids: nil)
     role = position_role.to_s
     reporting = Currency.base.first
     holdings_scope = Holding.joins(asset: :asset_type).merge(Asset.active).where("holdings.quantity > 0")
@@ -31,6 +31,9 @@ class AssetSummaryService
       .includes(:portfolio, asset: %i[asset_type currency stock_purpose sector speciality
                                         fund_type fund_style management_style market_index])
     holdings_scope = holdings_scope.where(asset_types: { key: asset_type_key }) if asset_type_key.present?
+    # Restrict to the selected portfolios (already validated to the user's own active
+    # portfolios by the controller). Empty/nil => all portfolios (unchanged default).
+    holdings_scope = holdings_scope.where(portfolio_id: portfolio_ids) if portfolio_ids.present?
     grouped = holdings_scope.group_by(&:asset_id)
 
     aggregates =

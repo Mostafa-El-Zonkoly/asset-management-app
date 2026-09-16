@@ -39,12 +39,13 @@
     <%= select_tag :risk_period, options_for_select(PortfolioRiskService::RISK_PERIODS.map { |k, l| [l, k] }, @risk_period), class: "mt-1 rounded-md border border-slate-300 px-2 py-2 text-sm" %>
   </div>
   <div class="min-w-[16rem] flex-1">
-    <label class="block text-xs font-medium uppercase text-slate-500">Portfolios <span class="font-normal normal-case text-slate-400">(none = all)</span></label>
+    <label class="block text-xs font-medium uppercase text-slate-500">Portfolios <span class="font-normal normal-case text-slate-400">(active pre-selected)</span></label>
     <div class="mt-1 flex flex-wrap gap-x-4 gap-y-1">
       <% @portfolios.each do |p| %>
-        <label class="inline-flex items-center gap-1.5 text-sm">
+        <label class="inline-flex items-center gap-1.5 text-sm <%= 'text-slate-400' unless p.active? %>">
           <%= check_box_tag "portfolio_ids[]", p.id, @selected_portfolio_ids.include?(p.id), class: "rounded border-slate-300" %>
           <span><%= p.name %></span>
+          <% unless p.active? %><span class="text-[10px] uppercase text-slate-400">(inactive)</span><% end %>
         </label>
       <% end %>
     </div>
