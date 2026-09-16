@@ -10,6 +10,25 @@ require Rails.root.join("lib/mubasher/index_fetcher")
 class Mubasher::IndexFetcherTest < ActiveSupport::TestCase
   def fetcher = Mubasher::IndexFetcher.new
 
+  # The real Mubasher market-summary block: the level lives in
+  # `.market-summary__last-price` (arrow is a CSS ::before, so node text is just
+  # the number). The change row and date carry other numbers that must NOT win.
+  test "reads the level from the market-summary last-price element, ignoring noise" do
+    html = <<~HTML
+      <div class="market-summary__block">
+        <div class="market-summary__date">Last update: Wednesday, September 16</div>
+        <div class="market-summary__last-price down-icon-only">6,639.47</div>
+        <div class="market-summary__change-row">
+          <span>-65.71</span><span>-0.98%</span><span>6,705.18</span>
+          <span>6,705.18</span><span>6,705.18</span>
+        </div>
+      </div>
+    HTML
+    # 6,705.18 appears 3× (would win the frequency heuristic) but the dedicated
+    # element wins because it is read directly.
+    assert_in_delta 6_639.47, fetcher.extract_level(html: html), 1e-6
+  end
+
   # EGX-style page: thousands-grouped level repeated across header/summary/script.
   test "extracts a thousands-grouped index level (54,909.17)" do
     html = <<~HTML

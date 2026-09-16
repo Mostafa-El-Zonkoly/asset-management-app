@@ -11,12 +11,13 @@ module Mubasher
   # prices under ~100k, no grouping) would mis-read. This one understands grouped
   # thousands and constrains to a plausible index range.
   #
-  # The extraction is heuristic (Mubasher exposes no public quote API): it collects
-  # numeric candidates from JSON-LD, price-ish nodes and the raw HTML, keeps only
-  # those inside [min_level, max_level], and returns the most frequently occurring
-  # in-range value (a page repeats the live level in several places — header, chart,
-  # summary — so the true level dominates), preferring values carrying a decimal
-  # fraction. Deterministic and unit-testable via extract_level(html:).
+  # Extraction is PRECISE first, heuristic only as a fallback. Mubasher renders the
+  # live index level in a dedicated element (`.market-summary__last-price`, the
+  # arrow being a CSS ::before pseudo-element so the node's text is just the
+  # number), so we read that element directly. Only if the page structure changes
+  # and that element is gone do we fall back to scanning every number on the page
+  # and picking the most frequent in-range value. Deterministic and unit-testable
+  # via extract_level(html:).
   class IndexFetcher
     DEFAULT_HEADERS = {
       "User-Agent" => "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "\
@@ -24,6 +25,13 @@ module Mubasher
       "Accept" => "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
       "Accept-Language" => "en-US,en;q=0.9,ar;q=0.8"
     }.freeze
+
+    # The element(s) Mubasher uses for the current index level, most specific first.
+    PRICE_SELECTORS = [
+      ".market-summary__last-price",
+      "[class*='market-summary__last']",
+      "[class*='last-price']"
+    ].freeze
 
     DEFAULT_MIN_LEVEL = 100.0
     DEFAULT_MAX_LEVEL = 10_000_000.0
@@ -55,6 +63,14 @@ module Mubasher
     # Pure extraction from an HTML string. Exposed for fixture-based tests.
     def extract_level(html:)
       doc = safe_parse(html)
+
+      # 1) Precise: the dedicated last-price element (the correct level).
+      if doc
+        precise = selector_level(doc)
+        return precise if precise
+      end
+
+      # 2) Fallback: scan every number and pick the most frequent in-range one.
       candidates = []
       candidates.concat(json_ld_numbers(doc)) if doc
       candidates.concat(grouped_number_tokens(html))
@@ -72,6 +88,24 @@ module Mubasher
       Nokogiri::HTML(html.to_s)
     rescue Nokogiri::XML::SyntaxError
       nil
+    end
+
+    # Read the level straight from Mubasher's last-price element. Takes the first
+    # number in the node's own text ("6,639.47" → 6639.47), skipping the arrow
+    # glyph, change row and everything else on the page.
+    def selector_level(doc)
+      PRICE_SELECTORS.each do |sel|
+        doc.css(sel).each do |node|
+          v = normalize_first(node.text)
+          return v if v && in_range?(v)
+        end
+      end
+      nil
+    end
+
+    def normalize_first(text)
+      tok = grouped_number_tokens(text).first || plain_number_tokens(text).first
+      tok && normalize(tok)
     end
 
     def json_ld_numbers(doc)
