@@ -38,9 +38,12 @@ class TransactionProcessorService
         raise Error, "Unsupported transaction type: #{type.key}"
       end
 
-      # Keep the FIFO lot ledger in sync after any buy/sell/stock_dividend.
+      # Keep the FIFO lot ledger in sync after any buy/sell/stock_dividend, then
+      # refresh this asset's purification (تطهير) list so a sell (or buy)
+      # immediately produces its purification entries — no manual "Refresh" needed.
       if LotLedger::LEDGER_TYPE_KEYS.include?(type.key) && attrs[:portfolio_id].present?
         LotLedger.rebuild!(attrs[:portfolio_id], attrs[:asset_id])
+        LotLedger.generate_purifications!(attrs[:portfolio_id], attrs[:asset_id])
       end
     end
   end
