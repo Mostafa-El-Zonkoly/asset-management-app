@@ -59,8 +59,9 @@
   <div class="mt-8 rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
     <p class="text-slate-600">No purification entries yet.</p>
     <p class="mt-1 text-sm text-slate-500">
-      Use <span class="font-medium">Refresh all</span> above to generate the list for completed quarters
-      (entries only appear once a quarter has fully ended).
+      Use <span class="font-medium">Refresh all</span> above to generate the list. It includes the
+      current, still-running period (marked <span class="font-medium text-amber-700">In progress</span>)
+      so you can record its amount now; its share-days keep accruing until the period ends.
     </p>
   </div>
 <% else %>
@@ -102,10 +103,15 @@
                 <tr class="border-t border-slate-100 align-middle">
                   <td class="px-3 py-2">
                     <%= form_with url: purification_entry_path(e), method: :patch, id: fid do %>
-                      <%= hidden_field_tag :portfolio_id, @selected_portfolio_id, id: nil %>
-                      <%= hidden_field_tag :status, @selected_status, id: nil %>
+                      <%= hidden_field_tag :portfolio_id, @selected_portfolio_id %>
+                      <%= hidden_field_tag :status, @selected_status %>
                     <% end %>
-                    <div class="font-medium text-slate-900"><%= e.quarter %></div>
+                    <div class="flex items-center gap-1.5">
+                      <span class="font-medium text-slate-900"><%= e.quarter %></span>
+                      <% if e.period_end && e.period_end >= Date.current.beginning_of_quarter %>
+                        <span class="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium uppercase text-amber-700" title="This period is still running — share-days accrue until it ends. You can record the amount now.">In progress</span>
+                      <% end %>
+                    </div>
                     <div class="text-xs text-slate-500"><%= e.period_start %> → <%= e.period_end %></div>
                   </td>
                   <td class="px-3 py-2 text-right tabular-nums"><%= number_with_precision(e.quantity, precision: 4, strip_insignificant_zeros: true) %></td>

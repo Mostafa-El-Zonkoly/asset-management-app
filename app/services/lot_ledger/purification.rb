@@ -56,10 +56,11 @@ module LotLedger
 
     def aaoifi_entries(lot, intervals, today)
       entries = []
-      each_completed_quarter(lot[:opened_on], today) do |label, qstart, qend_excl|
+      each_quarter_through_current(lot[:opened_on], today) do |label, qstart, qend_excl|
         days = 0
         sd = BigDecimal("0")
         opening_qty = nil
+        last_oe = nil
         intervals.each do |s, e, q|
           os = [s, qstart].max
           oe = [e, qend_excl].min
@@ -69,13 +70,20 @@ module LotLedger
           days += d
           sd += q * d
           opening_qty ||= q
+          last_oe = last_oe ? [last_oe, oe].max : oe
         end
         next if sd <= 0
+
+        # period_end = last day shares were actually held in this quarter. For a
+        # completed, fully-held quarter this is the quarter's last day; for the
+        # current (in-progress) quarter it is today-1; for a lot sold mid-quarter
+        # it is the day before the close. (Day convention is [start, end).)
+        end_excl = [qend_excl, last_oe].min
 
         entries << Entry.new(
           buy_id: lot[:buy_id], method: "aaoifi", quarter: label,
           period_start: [lot[:opened_on], qstart].max,
-          period_end: (qend_excl - 1),
+          period_end: (end_excl - 1),
           quantity: opening_qty, days: days, share_days: sd
         )
       end
@@ -103,16 +111,21 @@ module LotLedger
     end
 
     # Yields [label, quarter_start, quarter_end_exclusive] for every quarter from
-    # the open date up to and including the most recent COMPLETED quarter.
-    def each_completed_quarter(from_date, today)
+    # the open date through the CURRENT (in-progress) quarter — so the user sees a
+    # line for the running quarter too and can set its amount/status manually. The
+    # share-days for the current quarter accrue only up to `today` (the intervals
+    # never extend past it), and re-running refreshes them.
+    def each_quarter_through_current(from_date, today)
       year = from_date.year
       qi = (from_date.month - 1) / 3
       loop do
         qstart = Date.new(year, qi * 3 + 1, 1)
         qend_excl = qi == 3 ? Date.new(year + 1, 1, 1) : Date.new(year, (qi + 1) * 3 + 1, 1)
-        break if qend_excl > today # not completed yet
+        break if qstart > today # future quarter — nothing held yet
 
         yield "#{year}-Q#{qi + 1}", qstart, qend_excl
+        break if qend_excl > today # this was the current in-progress quarter; stop
+
         if qi == 3
           qi = 0
           year += 1
