@@ -49,7 +49,12 @@ class TransactionAmendService
     if LotLedger::LEDGER_TYPE_KEYS.include?(tx.transaction_type&.key) && tx.portfolio_id.present?
       pairs << [tx.portfolio_id, tx.asset_id]
     end
-    pairs.uniq.each { |pid, aid| LotLedger.rebuild!(pid, aid) }
+    pairs.uniq.each do |pid, aid|
+      LotLedger.rebuild!(pid, aid)
+      # Refresh the purification (تطهير) list for the affected asset(s) so editing
+      # or moving a sell keeps its purification entries in sync automatically.
+      LotLedger.generate_purifications!(pid, aid)
+    end
   end
 
   def apply_patch!(tx, deltas)
