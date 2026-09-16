@@ -22,10 +22,27 @@
           onchange: "this.form.requestSubmit()",
           class: "mt-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm" %>
   </div>
+  <% if @portfolios.present? %>
+    <div class="min-w-[16rem] flex-1">
+      <label class="block text-xs font-medium uppercase text-slate-500">Portfolios <span class="font-normal normal-case text-slate-400">(active only · none = all)</span></label>
+      <div class="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+        <% @portfolios.each do |p| %>
+          <label class="inline-flex items-center gap-1.5 text-sm">
+            <%= check_box_tag "portfolio_ids[]", p.id, @selected_portfolio_ids.include?(p.id), class: "rounded border-slate-300" %>
+            <span><%= p.name %></span>
+          </label>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
   <%= submit_tag "Apply", class: "rounded-md bg-slate-100 px-4 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-200" %>
-  <% if @selected_type %>
+  <% if @selected_type || @selected_portfolio_ids.present? %>
     <%= link_to "Clear", summary_assets_path, class: "px-2 py-1.5 text-sm text-blue-600 hover:underline" %>
   <% end %>
+<% end %>
+
+<% if @selected_portfolio_ids.present? %>
+  <p class="mt-2 text-xs text-slate-500">Showing holdings in: <strong><%= @portfolios.select { |p| @selected_portfolio_ids.include?(p.id) }.map(&:name).join(", ") %></strong>. Weight is relative to the filtered set.</p>
 <% end %>
 
 <% if @rows.any? %>
@@ -76,5 +93,5 @@
   </div>
   <p class="mt-3 text-xs text-slate-500">Weight is each line’s current value as a share of the total current value of all rows on this page.</p>
 <% else %>
-  <p class="mt-6 rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">No holdings with quantity yet. Add buys from <%= link_to "Transactions", transactions_path, class: "text-blue-600 underline" %>.</p>
+  <p class="mt-6 rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">No holdings with quantity<% if @selected_portfolio_ids.present? %> in the selected portfolio<%= "s" if @selected_portfolio_ids.size > 1 %><% end %> yet. Add buys from <%= link_to "Transactions", transactions_path, class: "text-blue-600 underline" %>.</p>
 <% end %>

@@ -11,7 +11,20 @@ class AssetsController < ApplicationController
     @selected_type = params[:type].presence
     @selected_type = nil unless @asset_types.any? { |t| t.key == @selected_type }
     @position_role = %w[all base temporary].include?(params[:position_role].to_s) ? params[:position_role] : "all"
-    data = AssetSummaryService.call(asset_type_key: @selected_type, position_role: @position_role)
+
+    # Filter by portfolio. Only ACTIVE portfolios are offered as choices; the
+    # selection is validated against the user's own active portfolios so a stray id
+    # can't leak another tenant's holdings. Empty selection => all (unchanged).
+    @portfolios = current_user.portfolios.where(active: true).order(:name)
+    raw_ids = params[:portfolio_ids]
+    raw_ids = raw_ids.to_s.split(",") if raw_ids.is_a?(String)
+    @selected_portfolio_ids = Array(raw_ids).map(&:to_i).uniq & @portfolios.ids
+
+    data = AssetSummaryService.call(
+      asset_type_key: @selected_type,
+      position_role: @position_role,
+      portfolio_ids: @selected_portfolio_ids.presence
+    )
     @rows = data[:rows]
     @reporting_currency = data[:reporting_currency]
   end
