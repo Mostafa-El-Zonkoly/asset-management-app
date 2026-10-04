@@ -1,0 +1,96 @@
+<% content_for :title, "Exportable assets" %>
+<%
+  avg_price  = ->(r) { r.quantity.to_d.nonzero? ? (r.cost.to_d / r.quantity.to_d) : nil }
+  cur_price  = ->(r) { r.quantity.to_d.nonzero? ? (r.current_value.to_d / r.quantity.to_d) : nil }
+  csv_params = { format: :csv, name: @name.presence, position_role: @position_role, portfolio_ids: @selected_portfolio_ids }.compact
+%>
+
+<div class="flex flex-wrap items-center justify-between gap-4">
+  <div>
+    <h1 class="text-2xl font-semibold">Exportable assets</h1>
+    <p class="mt-1 text-sm text-slate-600">One row per ticker with average and current price, P/L, weight and amounts<% if @reporting_currency %> (<%= @reporting_currency.code %>)<% end %>. Filter, then export to CSV.</p>
+  </div>
+  <div class="flex gap-2">
+    <%= link_to "Export CSV", exportable_assets_path(csv_params), class: "rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700" %>
+    <%= link_to "Asset summary", summary_assets_path, class: "rounded-md border border-slate-300 px-4 py-2 text-sm hover:bg-slate-50" %>
+  </div>
+</div>
+
+<%= form_with url: exportable_assets_path, method: :get, class: "mt-4 flex flex-wrap items-end gap-3" do %>
+  <div>
+    <label class="block text-xs font-medium uppercase text-slate-500">Name / ticker</label>
+    <%= text_field_tag :name, @name, placeholder: "Search…", class: "mt-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm" %>
+  </div>
+  <div>
+    <label class="block text-xs font-medium uppercase text-slate-500">Position</label>
+    <%= select_tag :position_role,
+          options_for_select([["All", "all"], ["Base", "base"], ["Temporary", "temporary"]], @position_role),
+          class: "mt-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm" %>
+  </div>
+  <% if @portfolios.present? %>
+    <div class="min-w-[16rem] flex-1">
+      <label class="block text-xs font-medium uppercase text-slate-500">Portfolios <span class="font-normal normal-case text-slate-400">(active only · none = all)</span></label>
+      <div class="mt-1 flex flex-wrap gap-x-4 gap-y-1">
+        <% @portfolios.each do |p| %>
+          <label class="inline-flex items-center gap-1.5 text-sm">
+            <%= check_box_tag "portfolio_ids[]", p.id, @selected_portfolio_ids.include?(p.id), class: "rounded border-slate-300" %>
+            <span><%= p.name %></span>
+          </label>
+        <% end %>
+      </div>
+    </div>
+  <% end %>
+  <%= submit_tag "Apply", class: "rounded-md bg-slate-100 px-4 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-200" %>
+  <% if @name.present? || @selected_portfolio_ids.present? || @position_role != "all" %>
+    <%= link_to "Clear", exportable_assets_path, class: "px-2 py-1.5 text-sm text-blue-600 hover:underline" %>
+  <% end %>
+<% end %>
+
+<% if @rows.any? %>
+  <div class="mt-6 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+    <table data-controller="sortable-table" class="w-full min-w-[60rem] text-left text-sm">
+      <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+        <tr>
+          <th class="px-3 py-2">Ticker</th>
+          <th class="px-3 py-2 text-right">Quantity</th>
+          <th class="px-3 py-2 text-right">Average price</th>
+          <th class="px-3 py-2 text-right">Profit / Loss %</th>
+          <th class="px-3 py-2 text-right">Weight</th>
+          <th class="px-3 py-2 text-right">Current price</th>
+          <th class="px-3 py-2 text-right">Total purchase</th>
+          <th class="px-3 py-2 text-right">Current amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @rows.each do |row| %>
+          <% a = row.asset %>
+          <% ap = avg_price.call(row) %>
+          <% cp = cur_price.call(row) %>
+          <tr class="border-t border-slate-100">
+            <td class="px-3 py-2 font-mono"><%= link_to a.code, a, class: "text-blue-600 hover:underline" %></td>
+            <td class="px-3 py-2 text-right tabular-nums" data-sort-value="<%= row.quantity.to_f %>"><%= number_with_precision(row.quantity, precision: 4, strip_insignificant_zeros: true) %></td>
+            <td class="px-3 py-2 text-right tabular-nums" data-sort-value="<%= ap.to_f %>"><%= ap ? number_with_precision(ap, precision: 4, delimiter: ",") : "—" %></td>
+            <td class="px-3 py-2 text-right" data-sort-value="<%= row.total_gain_pct.to_f %>"><%= format_pnl_percent(row.total_gain_pct, precision: 2) %></td>
+            <td class="px-3 py-2 text-right tabular-nums" data-sort-value="<%= row.weight_pct.to_f %>"><%= row.weight_pct ? "#{number_with_precision(row.weight_pct, precision: 2)}%" : "—" %></td>
+            <td class="px-3 py-2 text-right tabular-nums" data-sort-value="<%= cp.to_f %>"><%= cp ? number_with_precision(cp, precision: 4, delimiter: ",") : "—" %></td>
+            <td class="px-3 py-2 text-right tabular-nums" data-sort-value="<%= row.cost.to_f %>"><%= number_with_precision(row.cost, precision: 2, delimiter: ",") %></td>
+            <td class="px-3 py-2 text-right tabular-nums" data-sort-value="<%= row.current_value.to_f %>"><%= number_with_precision(row.current_value, precision: 2, delimiter: ",") %></td>
+          </tr>
+        <% end %>
+      </tbody>
+      <tfoot class="border-t-2 border-slate-200 bg-slate-50 text-sm font-medium">
+        <tr>
+          <td class="px-3 py-2">Total (<%= @rows.size %>)</td>
+          <td></td><td></td><td></td>
+          <td class="px-3 py-2 text-right tabular-nums"><%= number_with_precision(@rows.sum { |r| r.weight_pct.to_d }, precision: 2) %>%</td>
+          <td></td>
+          <td class="px-3 py-2 text-right tabular-nums"><%= number_with_precision(@rows.sum { |r| r.cost.to_d }, precision: 2, delimiter: ",") %></td>
+          <td class="px-3 py-2 text-right tabular-nums"><%= number_with_precision(@rows.sum { |r| r.current_value.to_d }, precision: 2, delimiter: ",") %></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  <p class="mt-3 text-xs text-slate-500">Average and current price are per unit in <%= @reporting_currency&.code %> (total ÷ quantity). Weight is each ticker's current amount as a share of the filtered total.</p>
+<% else %>
+  <p class="mt-6 rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">No holdings match these filters.</p>
+<% end %>

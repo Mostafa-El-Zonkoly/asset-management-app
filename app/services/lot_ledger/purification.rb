@@ -4,135 +4,154 @@ require "bigdecimal"
 require "date"
 
 module LotLedger
-  # Pure purification (تطهير) segmentation. No Rails dependency.
+  # Pure purification (تطهير) row generation. No Rails dependency.
   #
-  # For each lot it walks the share-count timeline (original qty, reduced by its
-  # closures at their close dates) and produces purification line items:
-  #   - aaoifi: one per COMPLETED calendar quarter the lot held shares in,
-  #             day-weighted (share_days = Σ qty*days).
-  #   - sp:     one per lot spanning its whole holding period ("one pluck").
+  # Mirrors the reference spreadsheet: one ROW per parcel of shares held during a
+  # calendar quarter. A lot that is bought once and sold in pieces produces:
   #
-  # Day convention: [start, end) — inclusive of the open date, exclusive of the
-  # close date. Only quarters whose end has passed (relative to `today`) are
-  # emitted; the current quarter is still accruing.
+  #   * one CLOSED row per sale that hit it in that quarter (qty x days held up
+  #     to that sale), and
+  #   * one ONGOING row for whatever is still held at quarter end, which is
+  #     carried into the next quarter (and only the ongoing part is carried).
+  #
+  # Buy 100, sell 40 -> a closed row of 40 and an ongoing row of 60.
+  # Buy 100, buy 150, sell 200 (FIFO) -> lot 1 is closed (100); lot 2 splits into
+  # a closed 100 and an ongoing 50.
+  #
+  # Each row carries two independent purification amounts:
+  #   * AAOIFI = quantity x days x per-day rate (every quarter the parcel is held)
+  #   * S&P    = (sell - buy) x quantity x percentage — ONLY on the closed row,
+  #              only when the sale made a profit.
+  #
+  # Day convention matches the spreadsheet: BOTH ends inclusive, i.e.
+  # 1 + (min(sell date, quarter end) - max(buy date, quarter start)). Ongoing
+  # rows run to the quarter end (also what the spreadsheet does), so the running
+  # quarter is a projection that is recomputed as soon as a sale is recorded.
   module Purification
-    Entry = Struct.new(
-      :buy_id, :method, :quarter, :period_start, :period_end,
-      :quantity, :days, :share_days,
+    # per_day:       AAOIFI purification per share per day
+    # sp_percentage: S&P purification as a PERCENT of profit (4.25 == 4.25%)
+    Rate = Struct.new(:per_day, :sp_percentage, keyword_init: true)
+
+    Row = Struct.new(
+      :buy_id, :sell_id, :quarter, :period_start, :period_end,
+      :quantity, :days, :buy_price, :sell_price,
+      :aaoifi_rate, :aaoifi_amount, :sp_rate, :sp_amount,
       keyword_init: true
-    )
+    ) do
+      def closed?
+        !sell_id.nil?
+      end
+
+      def ongoing?
+        !closed?
+      end
+    end
+
+    QUARTER_LABEL = /\A(\d{4})-Q([1-4])\z/
 
     module_function
 
-    # lots:     [{ buy_id:, opened_on: Date, original_qty: BigDecimal }]
-    # closures: [{ buy_id:, closed_on: Date, qty: BigDecimal }]
-    # method:   "aaoifi" | "sp"
-    # today:    Date (defaults to Date.today)
-    def compute(lots:, closures:, method:, today: Date.today)
+    # lots:     [{ buy_id:, opened_on: Date, original_qty:, buy_price: }]
+    # closures: [{ buy_id:, sell_id:, closed_on: Date, qty:, buy_price:, sell_price: }]
+    # rates:    { "2026-Q3" => Rate } for ONE asset (missing quarter => zero rates)
+    # today:    Date — quarters after the one containing `today` are not generated
+    def compute(lots:, closures:, rates: {}, today: Date.today)
       by_lot = closures.group_by { |c| c[:buy_id] }
       lots.flat_map do |lot|
-        intervals = quantity_intervals(lot, by_lot[lot[:buy_id]] || [], today)
-        if method.to_s == "sp"
-          sp_entry(lot, intervals, today)
-        else
-          aaoifi_entries(lot, intervals, today)
+        sorted = (by_lot[lot[:buy_id]] || []).sort_by { |c| [c[:closed_on], c[:sell_id].to_i] }
+        lot_rows(lot, sorted, rates, today)
+      end
+    end
+
+    def lot_rows(lot, closures, rates, today)
+      rows = []
+      original = bd(lot[:original_qty])
+
+      quarters(lot[:opened_on], today).each do |label, qstart, qend|
+        held = original - sum_qty(closures.select { |c| c[:closed_on] < qstart })
+        next unless held.positive?
+
+        held_start = [lot[:opened_on], qstart].max
+        rate = rates[label]
+        in_quarter = closures.select { |c| c[:closed_on] >= qstart && c[:closed_on] <= qend }
+
+        in_quarter.each do |c|
+          rows << closed_row(lot, c, label, held_start, rate)
         end
-      end.compact
+
+        remaining = held - sum_qty(in_quarter)
+        rows << ongoing_row(lot, label, held_start, qend, remaining, rate) if remaining.positive?
+      end
+      rows
     end
 
-    # Piecewise-constant [start, end, qty] segments (end exclusive).
-    def quantity_intervals(lot, lot_closures, today)
-      intervals = []
-      cursor = lot[:opened_on]
-      qty = bd(lot[:original_qty])
-      lot_closures.sort_by { |c| c[:closed_on] }.each do |c|
-        intervals << [cursor, c[:closed_on], qty] if c[:closed_on] > cursor && qty.positive?
-        qty -= bd(c[:qty])
-        cursor = c[:closed_on]
-      end
-      intervals << [cursor, today, qty] if qty.positive? && today > cursor
-      intervals
-    end
+    def closed_row(lot, closure, label, held_start, rate)
+      qty = bd(closure[:qty])
+      days = inclusive_days(held_start, closure[:closed_on])
+      buy = bd(closure[:buy_price] || lot[:buy_price])
+      sell = bd(closure[:sell_price])
+      sp_rate = rate ? bd(rate.sp_percentage) : BigDecimal("0")
+      profit = (sell - buy) * qty
 
-    def aaoifi_entries(lot, intervals, today)
-      entries = []
-      each_quarter_through_current(lot[:opened_on], today) do |label, qstart, qend_excl|
-        days = 0
-        sd = BigDecimal("0")
-        opening_qty = nil
-        last_oe = nil
-        intervals.each do |s, e, q|
-          os = [s, qstart].max
-          oe = [e, qend_excl].min
-          next unless oe > os
-
-          d = (oe - os).to_i
-          days += d
-          sd += q * d
-          opening_qty ||= q
-          last_oe = last_oe ? [last_oe, oe].max : oe
-        end
-        next if sd <= 0
-
-        # period_end = last day shares were actually held in this quarter. For a
-        # completed, fully-held quarter this is the quarter's last day; for the
-        # current (in-progress) quarter it is today-1; for a lot sold mid-quarter
-        # it is the day before the close. (Day convention is [start, end).)
-        end_excl = [qend_excl, last_oe].min
-
-        entries << Entry.new(
-          buy_id: lot[:buy_id], method: "aaoifi", quarter: label,
-          period_start: [lot[:opened_on], qstart].max,
-          period_end: (end_excl - 1),
-          quantity: opening_qty, days: days, share_days: sd
-        )
-      end
-      entries
-    end
-
-    def sp_entry(lot, intervals, _today)
-      return nil if intervals.empty?
-
-      days = 0
-      sd = BigDecimal("0")
-      intervals.each do |s, e, q|
-        d = (e - s).to_i
-        days += d
-        sd += q * d
-      end
-      return nil if sd <= 0
-
-      Entry.new(
-        buy_id: lot[:buy_id], method: "sp", quarter: "ALL",
-        period_start: intervals.first[0],
-        period_end: (intervals.last[1] - 1),
-        quantity: bd(lot[:original_qty]), days: days, share_days: sd
+      Row.new(
+        buy_id: lot[:buy_id], sell_id: closure[:sell_id], quarter: label,
+        period_start: held_start, period_end: closure[:closed_on],
+        quantity: qty, days: days, buy_price: buy, sell_price: sell,
+        aaoifi_rate: per_day(rate), aaoifi_amount: qty * days * per_day(rate),
+        sp_rate: sp_rate, sp_amount: profit.positive? ? profit * sp_rate / 100 : BigDecimal("0")
       )
     end
 
-    # Yields [label, quarter_start, quarter_end_exclusive] for every quarter from
-    # the open date through the CURRENT (in-progress) quarter — so the user sees a
-    # line for the running quarter too and can set its amount/status manually. The
-    # share-days for the current quarter accrue only up to `today` (the intervals
-    # never extend past it), and re-running refreshes them.
-    def each_quarter_through_current(from_date, today)
-      year = from_date.year
-      qi = (from_date.month - 1) / 3
-      loop do
-        qstart = Date.new(year, qi * 3 + 1, 1)
-        qend_excl = qi == 3 ? Date.new(year + 1, 1, 1) : Date.new(year, (qi + 1) * 3 + 1, 1)
-        break if qstart > today # future quarter — nothing held yet
+    def ongoing_row(lot, label, held_start, qend, qty, rate)
+      days = inclusive_days(held_start, qend)
+      Row.new(
+        buy_id: lot[:buy_id], sell_id: nil, quarter: label,
+        period_start: held_start, period_end: qend,
+        quantity: qty, days: days, buy_price: bd(lot[:buy_price]), sell_price: nil,
+        aaoifi_rate: per_day(rate), aaoifi_amount: qty * days * per_day(rate),
+        sp_rate: rate ? bd(rate.sp_percentage) : BigDecimal("0"), sp_amount: BigDecimal("0")
+      )
+    end
 
-        yield "#{year}-Q#{qi + 1}", qstart, qend_excl
-        break if qend_excl > today # this was the current in-progress quarter; stop
-
-        if qi == 3
-          qi = 0
-          year += 1
-        else
-          qi += 1
-        end
+    # [[label, quarter_start, quarter_end_inclusive], ...] from the quarter of
+    # `from_date` through the quarter containing `today`.
+    def quarters(from_date, today)
+      out = []
+      cursor = quarter_bounds(quarter_label(from_date)).first
+      while cursor <= today
+        label = quarter_label(cursor)
+        qstart, qend = quarter_bounds(label)
+        out << [label, qstart, qend]
+        cursor = qend + 1
       end
+      out
+    end
+
+    def quarter_label(date)
+      "#{date.year}-Q#{(date.month - 1) / 3 + 1}"
+    end
+
+    # => [first_day, last_day] of the calendar quarter named by `label`.
+    def quarter_bounds(label)
+      m = QUARTER_LABEL.match(label.to_s) or raise ArgumentError, "bad quarter #{label.inspect}"
+      start = Date.new(m[1].to_i, (m[2].to_i - 1) * 3 + 1, 1)
+      [start, (start >> 3) - 1]
+    end
+
+    def valid_quarter?(label)
+      QUARTER_LABEL.match?(label.to_s)
+    end
+
+    def inclusive_days(from, to)
+      (to - from).to_i + 1
+    end
+
+    def per_day(rate)
+      rate ? bd(rate.per_day) : BigDecimal("0")
+    end
+
+    def sum_qty(list)
+      list.inject(BigDecimal("0")) { |acc, c| acc + bd(c[:qty]) }
     end
 
     def bd(value)

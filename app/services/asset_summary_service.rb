@@ -6,6 +6,7 @@ class AssetSummaryService
     :asset,
     :quantity,
     :current_value,
+    :cost,
     :total_gain_pct,
     :weight_pct,
     :base_value,
@@ -18,12 +19,12 @@ class AssetSummaryService
   )
 
   class << self
-    def call(asset_type_key: nil, position_role: "all", portfolio_ids: nil)
-      new.call(asset_type_key: asset_type_key, position_role: position_role, portfolio_ids: portfolio_ids)
+    def call(asset_type_key: nil, position_role: "all", portfolio_ids: nil, name: nil)
+      new.call(asset_type_key: asset_type_key, position_role: position_role, portfolio_ids: portfolio_ids, name: name)
     end
   end
 
-  def call(asset_type_key: nil, position_role: "all", portfolio_ids: nil)
+  def call(asset_type_key: nil, position_role: "all", portfolio_ids: nil, name: nil)
     role = position_role.to_s
     reporting = Currency.base.first
     holdings_scope = Holding.joins(asset: :asset_type).merge(Asset.active).where("holdings.quantity > 0")
@@ -34,6 +35,11 @@ class AssetSummaryService
     # Restrict to the selected portfolios (already validated to the user's own active
     # portfolios by the controller). Empty/nil => all portfolios (unchanged default).
     holdings_scope = holdings_scope.where(portfolio_id: portfolio_ids) if portfolio_ids.present?
+    # Free-text filter on asset name/code (used by the exportable-assets screen).
+    if name.present?
+      like = "%#{name.strip}%"
+      holdings_scope = holdings_scope.where("assets.name ILIKE :q OR assets.code ILIKE :q", q: like)
+    end
     grouped = holdings_scope.group_by(&:asset_id)
 
     aggregates =
@@ -73,6 +79,7 @@ class AssetSummaryService
           asset: a[:asset],
           quantity: a[:quantity],
           current_value: a[:current_value],
+          cost: a[:cost],
           total_gain_pct: gain_percent(a[:total_gain], a[:cost]),
           weight_pct: weight_pct,
           base_value: a[:base_value],

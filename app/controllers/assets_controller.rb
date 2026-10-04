@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "csv"
+
 class AssetsController < ApplicationController
   CHART_RANGE_KEYS = %w[cw cm cy 1w 1m 3m ytd 1y].freeze
   PRICE_ROWS_PER_PAGE = 25
@@ -29,9 +31,41 @@ class AssetsController < ApplicationController
     @reporting_currency = data[:reporting_currency]
   end
 
+  # Exportable holdings view: one row per ticker with per-unit average/current
+  # price and totals, filterable by name, position role and portfolio(s), and
+  # downloadable as CSV. All money is in the reporting currency so a mixed-currency
+  # book stays internally consistent (avg×qty = total purchase, price×qty = amount).
+  def exportable
+    @name = params[:name].to_s.strip
+    @position_role = %w[all base temporary].include?(params[:position_role].to_s) ? params[:position_role] : "all"
+
+    @portfolios = current_user.portfolios.where(active: true).order(:name)
+    raw_ids = params[:portfolio_ids]
+    raw_ids = raw_ids.to_s.split(",") if raw_ids.is_a?(String)
+    @selected_portfolio_ids = Array(raw_ids).map(&:to_i).uniq & @portfolios.ids
+
+    data = AssetSummaryService.call(
+      position_role: @position_role,
+      portfolio_ids: @selected_portfolio_ids.presence,
+      name: @name.presence
+    )
+    @rows = data[:rows]
+    @reporting_currency = data[:reporting_currency]
+
+    respond_to do |format|
+      format.html
+      format.csv do
+        send_data exportable_csv(@rows),
+          filename: "exportable_assets_#{Date.current.iso8601}.csv",
+          type: "text/csv"
+      end
+    end
+  end
+
   def index
     @q = Asset.active.includes(:category, :asset_type, :currency, :sector).ransack(params[:q])
     @pagy, @assets = pagy(@q.result.order(:code), items: 25)
+    load_purification_for_list(@assets.map(&:id))
   end
 
   def performance
@@ -67,6 +101,8 @@ class AssetsController < ApplicationController
 
   def show
     @stats = AssetStatsService.summary(@asset)
+    @current_purification_quarter = LotLedger::Purification.quarter_label(Date.current)
+    @purification = PurificationStats.for_asset(@asset)
     @reporting_currency = Currency.base.first
     @holdings = @asset.holdings.includes(:portfolio, :asset).joins(:portfolio).order("portfolios.name")
     @transactions = PortfolioTransaction.where(asset: @asset).includes(:portfolio, :transaction_type).order(date: :desc).limit(50)
@@ -129,6 +165,39 @@ class AssetsController < ApplicationController
 
   private
 
+  # Per-unit average purchase price for an exportable row (reporting currency).
+  def avg_price_for(row)
+    q = row.quantity.to_d
+    q.nonzero? ? (row.cost.to_d / q) : nil
+  end
+
+  # Per-unit current price for an exportable row (reporting currency).
+  def current_price_for(row)
+    q = row.quantity.to_d
+    q.nonzero? ? (row.current_value.to_d / q) : nil
+  end
+
+  # CSV mirroring the on-screen exportable table. Numbers are plain (no grouping)
+  # so the file re-imports cleanly into a spreadsheet.
+  def exportable_csv(rows)
+    CSV.generate do |csv|
+      csv << ["Ticker", "Quantity", "Average Price", "Profit/Loss %", "Weight %",
+              "Current Price", "Total Purchase", "Current Amount"]
+      rows.each do |r|
+        csv << [
+          r.asset.code,
+          r.quantity.to_d.round(6).to_s("F"),
+          avg_price_for(r)&.round(6)&.to_s("F"),
+          r.total_gain_pct&.round(2)&.to_s("F"),
+          r.weight_pct&.round(2)&.to_s("F"),
+          current_price_for(r)&.round(6)&.to_s("F"),
+          r.cost.to_d.round(2).to_s("F"),
+          r.current_value.to_d.round(2).to_s("F")
+        ]
+      end
+    end
+  end
+
   def parse_performance_range
     if params[:from].present? || params[:to].present?
       from_d = parse_date_param(params[:from]) || Date.current
@@ -153,6 +222,16 @@ class AssetsController < ApplicationController
     Date.parse(raw.to_s)
   rescue ArgumentError
     nil
+  end
+
+  # Per-asset purification figures for the listing: this quarter's two rates and
+  # the lifetime summary (paid / outstanding).
+  def load_purification_for_list(asset_ids)
+    @current_purification_quarter = LotLedger::Purification.quarter_label(Date.current)
+    @purification_rates = PurificationRate.where(asset_id: asset_ids, quarter: @current_purification_quarter).index_by(&:asset_id)
+    @purification_summaries = PurificationEntry
+      .where(asset_id: asset_ids).includes(asset_lot: :currency).group_by(&:asset_id)
+      .transform_values { |rows| PurificationStats.summarize(rows).first }
   end
 
   def set_asset
