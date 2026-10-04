@@ -81,11 +81,12 @@
       <tfoot class="border-t-2 border-slate-200 bg-slate-50 text-sm font-medium">
         <tr>
           <td class="px-3 py-2">Total (<%= @rows.size %>)</td>
-          <td></td><td></td><td></td>
+          <td></td>
           <td class="px-3 py-2 text-right tabular-nums"><%= number_with_precision(@rows.sum { |r| r.weight_pct.to_d }, precision: 2) %>%</td>
+          <td class="px-3 py-2 text-right tabular-nums"><%= number_with_precision(@rows.sum { |r| r.current_value.to_d }, precision: 2, delimiter: ",") %></td>
+          <td></td><td></td>
           <td></td>
           <td class="px-3 py-2 text-right tabular-nums"><%= number_with_precision(@rows.sum { |r| r.cost.to_d }, precision: 2, delimiter: ",") %></td>
-          <td class="px-3 py-2 text-right tabular-nums"><%= number_with_precision(@rows.sum { |r| r.current_value.to_d }, precision: 2, delimiter: ",") %></td>
         </tr>
       </tfoot>
     </table>
