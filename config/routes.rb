@@ -37,6 +37,7 @@ Rails.application.routes.draw do
     collection do
       get :compare
       get :summary
+      get :exportable
       get :performance
     end
     resources :estimates, controller: "asset_estimates", except: :show
@@ -51,9 +52,12 @@ Rails.application.routes.draw do
   resource :opening_capitals, only: %i[edit update], controller: "opening_capitals"
   get "reports/portfolio", to: "reports#portfolio", as: :portfolio_report
 
-  resources :purification_entries, only: %i[index update] do
+  resources :purification_entries, only: %i[index] do
+    member { patch :toggle }
     collection do
       post :generate
+      patch :bulk_pay
+      patch :rates
     end
   end
 

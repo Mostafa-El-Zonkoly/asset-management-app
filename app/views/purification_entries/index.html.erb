@@ -1,22 +1,53 @@
 <% content_for :title, "Purification (تطهير)" %>
+<% fp = @filter_params %>
+<% money = ->(v) { number_with_precision(v, precision: 2, delimiter: ",") } %>
 
 <div class="flex flex-wrap items-start justify-between gap-4">
   <div>
     <h1 class="text-2xl font-semibold text-slate-900">Purification (تطهير)</h1>
-    <p class="mt-1 max-w-2xl text-sm text-slate-600">
-      The list to purify, segmented from your FIFO lots. The app produces each line
-      (period, quantity held, day-weight); you enter the amount to purify and mark
-      it done. <span class="font-medium">share-days</span> = Σ quantity × days held,
-      the basis for splitting an amount across periods.
+    <p class="mt-1 max-w-3xl text-sm text-slate-600">
+      One tab per quarter. Every row is a parcel of shares held during that quarter.
+      <span class="font-medium">AAOIFI</span> = shares × days held × the asset's per-day rate, charged every quarter the parcel is held.
+      <span class="font-medium">S&amp;P</span> = the asset's percentage × profit, charged once, in the quarter the parcel is sold (only if it made a profit).
+      A partial sale splits a lot into a closed row and an ongoing row; only ongoing rows carry into the next quarter.
     </p>
   </div>
-  <%= button_to "Refresh all", generate_purification_entries_path(status: @selected_status),
+  <%= button_to "Refresh", generate_purification_entries_path(fp.slice(:portfolio_id, :quarter, :status)),
         method: :post,
-        class: "rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700" %>
+        class: "rounded-md bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-200" %>
 </div>
+
+<!-- Overall statistics (all quarters) -->
+<% if @overall.any? %>
+  <% @overall.each do |s| %>
+    <div class="mt-6">
+      <div class="mb-2 text-xs font-medium uppercase text-slate-500">
+        Overall · all quarters <span class="ml-1 rounded bg-slate-100 px-1.5 py-0.5 normal-case text-slate-600"><%= s.currency %></span>
+      </div>
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div class="text-xs uppercase text-slate-500">Total purification</div>
+          <div class="mt-1 text-2xl font-semibold text-slate-900 tabular-nums"><%= money.(s.total) %></div>
+          <div class="mt-1 text-xs text-slate-500 tabular-nums">AAOIFI <%= money.(s.aaoifi_total) %> · S&amp;P <%= money.(s.sp_total) %></div>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div class="text-xs uppercase text-slate-500">Paid</div>
+          <div class="mt-1 text-2xl font-semibold text-emerald-600 tabular-nums"><%= money.(s.paid) %></div>
+          <div class="mt-1 text-xs text-slate-500 tabular-nums">AAOIFI <%= money.(s.aaoifi_paid) %> · S&amp;P <%= money.(s.sp_paid) %></div>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div class="text-xs uppercase text-slate-500">Outstanding</div>
+          <div class="mt-1 text-2xl font-semibold text-amber-600 tabular-nums"><%= money.(s.outstanding) %></div>
+          <div class="mt-1 text-xs text-slate-500 tabular-nums">AAOIFI <%= money.(s.aaoifi_outstanding) %> · S&amp;P <%= money.(s.sp_outstanding) %></div>
+        </div>
+      </div>
+    </div>
+  <% end %>
+<% end %>
 
 <!-- Filters -->
 <%= form_with url: purification_entries_path, method: :get, class: "mt-6 flex flex-wrap items-end gap-3" do %>
+  <%= hidden_field_tag :quarter, @quarter %>
   <div>
     <label class="block text-xs font-medium uppercase text-slate-500">Portfolio</label>
     <%= select_tag :portfolio_id,
@@ -24,128 +55,189 @@
           class: "mt-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm" %>
   </div>
   <div>
-    <label class="block text-xs font-medium uppercase text-slate-500">Status</label>
+    <label class="block text-xs font-medium uppercase text-slate-500">Show</label>
     <%= select_tag :status,
-          options_for_select([["All statuses", ""]] + PurificationEntry::STATUSES.map { |s| [s.humanize, s] }, @selected_status),
+          options_for_select([["All rows", ""], ["Has unpaid", "unpaid"], ["Fully paid", "paid"]], @selected_status),
           class: "mt-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm" %>
   </div>
   <%= submit_tag "Apply", class: "rounded-md bg-slate-100 px-4 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-200" %>
   <% if @selected_portfolio_id || @selected_status %>
-    <%= link_to "Clear", purification_entries_path, class: "px-2 py-1.5 text-sm text-blue-600 hover:underline" %>
+    <%= link_to "Clear", purification_entries_path(quarter: @quarter), class: "px-2 py-1.5 text-sm text-blue-600 hover:underline" %>
   <% end %>
 <% end %>
 
-<!-- Summary -->
-<div class="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-  <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-    <div class="text-xs uppercase text-slate-500">Pending</div>
-    <div class="mt-1 text-2xl font-semibold text-amber-600 tabular-nums"><%= @summary[:pending] %></div>
-  </div>
-  <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-    <div class="text-xs uppercase text-slate-500">Done</div>
-    <div class="mt-1 text-2xl font-semibold text-emerald-600 tabular-nums"><%= @summary[:done] %></div>
-  </div>
-  <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-    <div class="text-xs uppercase text-slate-500">Not required</div>
-    <div class="mt-1 text-2xl font-semibold text-slate-500 tabular-nums"><%= @summary[:not_required] %></div>
-  </div>
-  <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-    <div class="text-xs uppercase text-slate-500">Total purified (done)</div>
-    <div class="mt-1 text-2xl font-semibold text-slate-900 tabular-nums"><%= number_with_precision(@summary[:amount_done], precision: 2, delimiter: ",") %></div>
-  </div>
+<!-- Quarter tabs -->
+<div class="mt-6 flex flex-wrap gap-1 border-b border-slate-200">
+  <% @quarters.each do |q| %>
+    <% active = q == @quarter %>
+    <%= link_to purification_entries_path(fp.merge(quarter: q)),
+          class: "-mb-px rounded-t-md border px-4 py-2 text-sm font-medium #{active ? 'border-slate-200 border-b-white bg-white text-slate-900' : 'border-transparent text-slate-500 hover:text-slate-800'}" do %>
+      <%= q %>
+      <% if q == @current_quarter %>
+        <span class="ml-1 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium uppercase text-amber-700">Running</span>
+      <% end %>
+    <% end %>
+  <% end %>
 </div>
 
+<!-- Quarter summary + bulk actions -->
+<div class="mt-4 flex flex-wrap items-start justify-between gap-4">
+  <div class="text-sm text-slate-600">
+    <% first, last = LotLedger::Purification.quarter_bounds(@quarter) %>
+    <span class="font-medium text-slate-900"><%= @quarter %></span>
+    <span class="text-slate-500">(<%= first %> → <%= last %>)</span>
+    <% if @quarter == @current_quarter %>
+      <span class="text-slate-500">— ongoing rows run to the quarter end and are recalculated as soon as a sale is recorded.</span>
+    <% end %>
+    <% @quarter_summary.each do |s| %>
+      <div class="mt-1 tabular-nums">
+        <span class="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600"><%= s.currency %></span>
+        Total <span class="font-medium"><%= money.(s.total) %></span> ·
+        Paid <span class="font-medium text-emerald-700"><%= money.(s.paid) %></span> ·
+        Outstanding <span class="font-medium text-amber-700"><%= money.(s.outstanding) %></span>
+        <span class="text-xs text-slate-500">(AAOIFI <%= money.(s.aaoifi_outstanding) %> · S&amp;P <%= money.(s.sp_outstanding) %> outstanding)</span>
+      </div>
+    <% end %>
+  </div>
+  <% if @entries.any? %>
+    <div class="flex flex-wrap gap-2">
+      <%= button_to "Mark all #{@quarter} paid", bulk_pay_purification_entries_path(fp.merge(quarter: @quarter)),
+            method: :patch, params: { kind: "both", paid: "1" },
+            class: "rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700" %>
+      <%= button_to "Mark all #{@quarter} unpaid", bulk_pay_purification_entries_path(fp.merge(quarter: @quarter)),
+            method: :patch, params: { kind: "both", paid: "0" },
+            class: "rounded-md bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-200" %>
+    </div>
+  <% end %>
+</div>
+
+<!-- Rates for the quarter -->
+<% if @rate_assets.any? %>
+  <% missing_rates = @rate_assets.count { |a| @rates[a.id].nil? || (@rates[a.id].aaoifi_per_day.zero? && @rates[a.id].sp_percentage.zero?) } %>
+  <details class="mt-4 rounded-xl border border-slate-200 bg-white shadow-sm" <%= "open" if missing_rates.positive? %>>
+    <summary class="cursor-pointer px-4 py-3 text-sm font-medium text-slate-800">
+      Rates for <%= @quarter %>
+      <% if missing_rates.positive? %>
+        <span class="ml-2 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700"><%= missing_rates %> without rates</span>
+      <% end %>
+    </summary>
+    <%= form_with url: rates_purification_entries_path(fp.merge(quarter: @quarter)), method: :patch, class: "border-t border-slate-100 p-4" do %>
+      <div class="overflow-x-auto">
+        <table class="w-full min-w-[32rem] text-left text-sm">
+          <thead class="text-xs uppercase text-slate-500">
+            <tr>
+              <th class="py-1 pr-3">Stock</th>
+              <th class="py-1 pr-3">AAOIFI purification / share / day</th>
+              <th class="py-1 pr-3">S&amp;P purification (% of profit)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @rate_assets.each do |a| %>
+              <% r = @rates[a.id] %>
+              <tr class="border-t border-slate-100">
+                <td class="py-1.5 pr-3 font-mono"><%= a.code %></td>
+                <td class="py-1.5 pr-3">
+                  <%= number_field_tag "rates[#{a.id}][aaoifi_per_day]", r&.aaoifi_per_day&.to_s("F"), step: "any", min: 0,
+                        class: "w-40 rounded-md border border-slate-300 px-2 py-1 text-right text-sm tabular-nums" %>
+                </td>
+                <td class="py-1.5 pr-3">
+                  <%= number_field_tag "rates[#{a.id}][sp_percentage]", r&.sp_percentage&.to_s("F"), step: "any", min: 0, max: 100,
+                        class: "w-28 rounded-md border border-slate-300 px-2 py-1 text-right text-sm tabular-nums" %> %
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+      <div class="mt-3 flex items-center gap-3">
+        <%= submit_tag "Save rates & recalculate", class: "rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700" %>
+        <span class="text-xs text-slate-500">Amounts are recalculated; a Paid tick is cleared only where the amount changes.</span>
+      </div>
+    <% end %>
+  </details>
+<% end %>
+
 <% if @entries.empty? %>
-  <div class="mt-8 rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
-    <p class="text-slate-600">No purification entries yet.</p>
-    <p class="mt-1 text-sm text-slate-500">
-      Use <span class="font-medium">Refresh all</span> above to generate the list. It includes the
-      current, still-running period (marked <span class="font-medium text-amber-700">In progress</span>)
-      so you can record its amount now; its share-days keep accruing until the period ends.
-    </p>
+  <div class="mt-6 rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center">
+    <p class="text-slate-600">No purification rows for <%= @quarter %><%= " with these filters" if @selected_status || @selected_portfolio_id %>.</p>
+    <p class="mt-1 text-sm text-slate-500">Rows are generated from your buy and sell transactions.</p>
   </div>
 <% else %>
-  <% @grouped.each do |portfolio, by_asset| %>
-    <section class="mt-10">
-      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-2">
-        <h2 class="flex items-center gap-2 text-lg font-semibold text-slate-900">
-          <%= portfolio.name %>
-          <span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500">
-            <%= portfolio.purification_method == "aaoifi" ? "AAOIFI · quarterly" : "SP · whole period" %>
-          </span>
-        </h2>
-        <%= button_to "Refresh this portfolio",
-              generate_purification_entries_path(portfolio_id: portfolio.id, status: @selected_status),
-              method: :post,
-              class: "rounded-md bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-200" %>
-      </div>
-
-      <% by_asset.each do |asset, entries| %>
-        <h3 class="mt-5 text-sm font-semibold text-slate-700"><%= asset.name %> <span class="font-normal text-slate-400">(<%= asset.code %>)</span></h3>
-        <div class="mt-2 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-          <table class="w-full min-w-[56rem] text-left text-sm">
-            <thead class="bg-slate-50 text-xs uppercase text-slate-500">
-              <tr>
-                <th class="px-3 py-2">Period</th>
-                <th class="px-3 py-2 text-right">Quantity</th>
-                <th class="px-3 py-2 text-right">Days</th>
-                <th class="px-3 py-2 text-right">Share-days</th>
-                <th class="px-3 py-2">Status</th>
-                <th class="px-3 py-2 text-right">Amount</th>
-                <th class="px-3 py-2">Done on</th>
-                <th class="px-3 py-2">Notes</th>
-                <th class="px-3 py-2"></th>
-              </tr>
-            </thead>
-            <tbody>
-              <% entries.each do |e| %>
-                <% fid = "pe_#{e.id}" %>
-                <tr class="border-t border-slate-100 align-middle">
-                  <td class="px-3 py-2">
-                    <%= form_with url: purification_entry_path(e), method: :patch, id: fid do %>
-                      <%= hidden_field_tag :portfolio_id, @selected_portfolio_id %>
-                      <%= hidden_field_tag :status, @selected_status %>
-                    <% end %>
-                    <div class="flex items-center gap-1.5">
-                      <span class="font-medium text-slate-900"><%= e.quarter %></span>
-                      <% if e.period_end && e.period_end >= Date.current.beginning_of_quarter %>
-                        <span class="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium uppercase text-amber-700" title="This period is still running — share-days accrue until it ends. You can record the amount now.">In progress</span>
-                      <% end %>
-                    </div>
-                    <div class="text-xs text-slate-500"><%= e.period_start %> → <%= e.period_end %></div>
-                  </td>
-                  <td class="px-3 py-2 text-right tabular-nums"><%= number_with_precision(e.quantity, precision: 4, strip_insignificant_zeros: true) %></td>
-                  <td class="px-3 py-2 text-right tabular-nums"><%= e.days %></td>
-                  <td class="px-3 py-2 text-right tabular-nums"><%= number_with_precision(e.share_days, precision: 2, delimiter: ",") %></td>
-                  <td class="px-3 py-2">
-                    <%= select_tag "purification_entry[status]",
-                          options_for_select(PurificationEntry::STATUSES.map { |s| [s.humanize, s] }, e.status),
-                          form: fid,
-                          class: "rounded-md border border-slate-300 px-2 py-1 text-sm" %>
-                  </td>
-                  <td class="px-3 py-2 text-right whitespace-nowrap">
-                    <%= number_field_tag "purification_entry[amount]", e.amount, step: "0.00000001", form: fid,
-                          class: "w-28 rounded-md border border-slate-300 px-2 py-1 text-right text-sm tabular-nums" %>
-                    <span class="ml-1 text-xs text-slate-400"><%= e.asset_lot.currency.code %></span>
-                  </td>
-                  <td class="px-3 py-2">
-                    <%= date_field_tag "purification_entry[done_on]", e.done_on, form: fid,
-                          class: "rounded-md border border-slate-300 px-2 py-1 text-sm" %>
-                  </td>
-                  <td class="px-3 py-2">
-                    <%= text_field_tag "purification_entry[notes]", e.notes, form: fid, placeholder: "—",
-                          class: "w-40 rounded-md border border-slate-300 px-2 py-1 text-sm" %>
-                  </td>
-                  <td class="px-3 py-2 text-right">
-                    <%= button_tag "Save", form: fid,
-                          class: "rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700" %>
-                  </td>
-                </tr>
+  <% multi_portfolio = @portfolios.size > 1 && @selected_portfolio_id.nil? %>
+  <div class="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+    <table class="w-full min-w-[80rem] text-left text-sm">
+      <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+        <tr>
+          <th class="px-3 py-2">Stock</th>
+          <th class="px-3 py-2 text-right">Qty</th>
+          <th class="px-3 py-2">Purchase</th>
+          <th class="px-3 py-2 text-right">Buy price</th>
+          <th class="px-3 py-2">Sale</th>
+          <th class="px-3 py-2 text-right">Sell price</th>
+          <th class="px-3 py-2">Status</th>
+          <th class="px-3 py-2 text-right">Days</th>
+          <th class="px-3 py-2 text-right">AAOIFI / day</th>
+          <th class="px-3 py-2 text-right">AAOIFI purif.</th>
+          <th class="px-3 py-2 text-center">Paid</th>
+          <th class="px-3 py-2 text-right">S&amp;P %</th>
+          <th class="px-3 py-2 text-right">S&amp;P purif.</th>
+          <th class="px-3 py-2 text-center">Paid</th>
+          <th class="px-3 py-2 text-right">Profit after purif.</th>
+          <th class="px-3 py-2 text-right">Profit %</th>
+          <th class="px-3 py-2 text-right">Purif. % of profit</th>
+          <th class="px-3 py-2 text-right">Purif. % of cost</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @entries.each do |e| %>
+          <% pct = ->(v) { v.nil? ? "—" : "#{number_with_precision(v * 100, precision: 2)}%" } %>
+          <tr class="border-t border-slate-100 align-middle">
+            <td class="px-3 py-2">
+              <%= link_to e.asset.code, e.asset, class: "font-mono font-medium text-blue-600 hover:underline" %>
+              <% if multi_portfolio %><div class="text-xs text-slate-400"><%= e.portfolio.name %></div><% end %>
+            </td>
+            <td class="px-3 py-2 text-right tabular-nums"><%= number_with_precision(e.quantity, precision: 4, strip_insignificant_zeros: true, delimiter: ",") %></td>
+            <td class="px-3 py-2 whitespace-nowrap"><%= e.asset_lot.opened_on %></td>
+            <td class="px-3 py-2 text-right tabular-nums"><%= number_with_precision(e.buy_price_per_unit, precision: 4, strip_insignificant_zeros: true) %></td>
+            <td class="px-3 py-2 whitespace-nowrap"><%= e.closed? ? e.period_end : "—" %></td>
+            <td class="px-3 py-2 text-right tabular-nums"><%= e.closed? ? number_with_precision(e.sell_price_per_unit, precision: 4, strip_insignificant_zeros: true) : "—" %></td>
+            <td class="px-3 py-2">
+              <% if e.closed? %>
+                <span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">Closed</span>
+              <% else %>
+                <span class="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">Ongoing</span>
               <% end %>
-            </tbody>
-          </table>
-        </div>
-      <% end %>
-    </section>
-  <% end %>
+            </td>
+            <td class="px-3 py-2 text-right tabular-nums"><%= e.days %></td>
+            <td class="px-3 py-2 text-right tabular-nums"><%= number_with_precision(e.aaoifi_rate, precision: 6, strip_insignificant_zeros: true) %></td>
+            <td class="px-3 py-2 text-right tabular-nums font-medium"><%= number_with_precision(e.aaoifi_amount, precision: 4, delimiter: ",") %></td>
+            <td class="px-3 py-2 text-center">
+              <% if e.aaoifi_amount.positive? %>
+                <%= button_to toggle_purification_entry_path(e, fp), method: :patch, params: { kind: "aaoifi" },
+                      title: (e.aaoifi_paid ? "Paid #{e.aaoifi_paid_on} — click to mark unpaid" : "Click to mark paid"),
+                      class: "rounded-full px-2 py-0.5 text-xs font-medium #{e.aaoifi_paid ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-amber-50 text-amber-700 hover:bg-amber-100'}" do %>
+                  <%= e.aaoifi_paid ? "Paid" : "Unpaid" %>
+                <% end %>
+              <% else %>—<% end %>
+            </td>
+            <td class="px-3 py-2 text-right tabular-nums"><%= e.closed? ? "#{number_with_precision(e.sp_rate, precision: 4, strip_insignificant_zeros: true)}%" : "—" %></td>
+            <td class="px-3 py-2 text-right tabular-nums font-medium"><%= e.closed? ? number_with_precision(e.sp_amount, precision: 4, delimiter: ",") : "—" %></td>
+            <td class="px-3 py-2 text-center">
+              <% if e.closed? && e.sp_amount.positive? %>
+                <%= button_to toggle_purification_entry_path(e, fp), method: :patch, params: { kind: "sp" },
+                      title: (e.sp_paid ? "Paid #{e.sp_paid_on} — click to mark unpaid" : "Click to mark paid"),
+                      class: "rounded-full px-2 py-0.5 text-xs font-medium #{e.sp_paid ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-amber-50 text-amber-700 hover:bg-amber-100'}" do %>
+                  <%= e.sp_paid ? "Paid" : "Unpaid" %>
+                <% end %>
+              <% else %>—<% end %>
+            </td>
+            <td class="px-3 py-2 text-right tabular-nums"><%= e.closed? ? number_with_precision(e.profit_after_purification, precision: 2, delimiter: ",") : "—" %></td>
+            <td class="px-3 py-2 text-right tabular-nums"><%= pct.(e.profit_after_purification_pct) %></td>
+            <td class="px-3 py-2 text-right tabular-nums"><%= pct.(e.purification_pct_of_profit) %></td>
+            <td class="px-3 py-2 text-right tabular-nums"><%= pct.(e.purification_pct_of_cost) %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
 <% end %>

@@ -3,8 +3,10 @@
 Design spec for the per-asset **operations** feature: FIFO tax-lot tracking of
 buys/sells, plus quarterly Sharia **purification** list generation.
 
-Status: **design agreed, not yet implemented.** This document is the reference
-the implementation should follow.
+Status: lot ledger implemented. **Purification was redesigned on 2026-09-20** to
+mirror the reference spreadsheet (`Stocks 6-9 2026.xlsx`): per-quarter rows, AAOIFI
++ S&P amounts computed from per-asset quarterly rates, per-purification paid flags.
+Sections 1, 2, 3 (purification tables) and 4.2 below describe the new behaviour.
 
 ---
 
@@ -17,10 +19,11 @@ For each asset in a portfolio, break the raw buy/sell history into discrete
 - **Closed operation** — a parcel matched against a later sell, carrying a
   realized gain/loss.
 
-…and, separately, produce a **purification (تطهير) list**: for every period a
-parcel of shares was held, a line item the user marks *done / not-needed* and
-into which they type the purification **amount** (the money is computed outside
-the app — the app only produces *what* to purify).
+…and, separately, produce a **purification (تطهير) list**: for every quarter a
+parcel of shares was held, a row with its **AAOIFI** purification (per share per
+day) and — when it was sold at a profit — its **S&P** purification (percentage of
+profit). Each of the two has a paid flag, and the screen shows total / paid /
+outstanding.
 
 ### Worked example (buys/sells)
 
@@ -43,17 +46,25 @@ Produces:
 The 6 Jan sell consumes the **oldest** open lot first (FIFO): 10 of the 1 Jan
 lot. 10 of that lot remain open.
 
-### Worked example (purification, AAOIFI)
+### Worked example (purification)
 
-The 10 open shares from the 1 Jan lot, seen on **2 April**:
+Each purification **row** is a parcel of shares held during one calendar quarter
+(one row of the spreadsheet). Take `Buy 100 @ 10 on 1 Aug`, `Sell 40 @ 12 on 20 Aug`,
+seen in Q4 (say 3 Nov), with rates AAOIFI 0.01/share/day, S&P 5 %:
 
-| Lot   | Quarter | Period       | Days | Qty | Status  |
-|-------|---------|--------------|------|-----|---------|
-| 1 Jan | 2026-Q1 | 1 Jan–31 Mar | ~90  | 10  | pending |
-| 1 Jan | 2026-Q2 | 1 Apr–now    | accruing (not due until Q2 closes) |
+| Quarter | Row     | Qty | Held (inclusive)  | Days | AAOIFI           | S&P                         |
+|---------|---------|-----|-------------------|------|------------------|-----------------------------|
+| 2026-Q3 | closed  | 40  | 1 Aug – 20 Aug    | 20   | 40 × 20 × 0.01   | (12 − 10) × 40 × 5 %        |
+| 2026-Q3 | ongoing | 60  | 1 Aug – 30 Sep    | 61   | 60 × 61 × 0.01   | —                           |
+| 2026-Q4 | ongoing | 60  | 1 Oct – 31 Dec    | 92   | 60 × 92 × 0.01   | —                           |
 
-No new lot is created when the quarter turns — the lot keeps accruing; a Q1
-purification line is simply generated for it.
+* A partial sale splits the lot: the sold part is a **closed** row, the rest stays
+  **ongoing**. Buy 100, buy 150, sell 200 → lot 1 closed (100); lot 2 splits into
+  100 closed + 50 ongoing.
+* Only ongoing rows carry into the next quarter; a closed row appears only in the
+  quarters up to (and including) the quarter it was sold in.
+* **AAOIFI** is charged on every row (every quarter the parcel is held).
+* **S&P** is charged only on the closed row, only when the sale made a profit.
 
 ---
 
@@ -63,16 +74,23 @@ purification line is simply generated for it.
 - **Coexistence:** the lot ledger runs **alongside** the existing average-cost
   `transactions.realised_gain`. Existing reports are untouched; lots are a new
   view. (Two realized-gain figures may appear — expected.)
-- **Purification is per holding period, split by calendar quarter.** A holding
-  wholly inside one quarter → one entry. A holding crossing quarters → one entry
-  per quarter, prorated by **days held in that quarter**. Applies to shares
-  later sold *and* still open.
-- **Purification method is a portfolio-level setting:**
-  - `aaoifi` — split by quarter, day-weighted (as above).
-  - `sp` — **no** quarter split; one purification entry per lot for its whole
-    holding period ("one pluck").
-- **Purification value:** checklist (`done` / `not_required`) **plus a manually
-  entered amount**. Calculation happens outside the app.
+- **Purification rows are per parcel per calendar quarter** (see the worked
+  example). Both purifications are always computed; there is no per-portfolio
+  method switch any more (`portfolios.purification_method` is now unused).
+- **AAOIFI** = `quantity × days × per-day rate`. **S&P** = `(sell − buy) × quantity
+  × percentage`, closed rows with a profit only.
+- **Day count:** both ends inclusive — `1 + (min(sell, quarter end) − max(buy,
+  quarter start))`, exactly as the spreadsheet. Ongoing rows run to the quarter end,
+  so the running quarter is a projection that is recomputed when a sale is recorded.
+- **Rates are entered per asset per quarter** (`purification_rates`): AAOIFI per
+  share per day, and S&P percentage (stored as a percent, 4.25 = 4.25 %).
+- **Each purification has its own paid flag** (AAOIFI paid, S&P paid). Statistics
+  show total / paid / outstanding overall and per quarter, per currency.
+- **Regeneration is automatic** (after any buy/sell via the transaction services,
+  when rates are saved, and on first visit to the screen after a quarter rollover)
+  and idempotent — a paid flag survives unless that purification's amount changes
+  (then it is cleared, so it shows as outstanding again); rows the ledger no longer
+  produces are deleted.
 - **Quarters:** calendar quarters — Jan–Mar, Apr–Jun, Jul–Sep, Oct–Dec.
 - **Quarter close is manual** (a button), not an automatic trigger.
 
@@ -80,14 +98,10 @@ purification line is simply generated for it.
 
 ## 3. Data model
 
-New portfolio setting:
+`portfolios.purification_method` (aaoifi | sp) exists from the first design and is
+now unused — both purifications are always computed.
 
-```
-portfolios
-  + purification_method : enum { aaoifi, sp }   default aaoifi
-```
-
-New tables:
+Tables:
 
 ```
 asset_lots                    # one row per BUY — the FIFO parcel
@@ -110,20 +124,27 @@ lot_closures                  # one row per (lot ↔ sell) match — a CLOSED op
   realised_gain : decimal     # (sell − buy) × quantity  (asset currency)
   index: unique(asset_lot_id, sell_transaction_id)
 
-purification_entries          # the "list to purify"
+purification_entries          # one row per (lot, quarter, sale) — a spreadsheet row
   portfolio_id, asset_id, asset_lot_id
-  method : enum { aaoifi, sp }   # captured at generation time
-  quarter : string             # e.g. "2026-Q1"  (null for sp)
-  period_start : date
-  period_end : date
-  quantity : decimal           # shares this segment covers
-  days : integer               # days held within the segment
-  share_days : decimal         # Σ(qty × days) — precise basis for external calc
-  status : enum { pending, done, not_required }  default pending
-  amount : decimal             # entered manually
-  done_on : date
-  notes : text
-  index: unique(asset_lot_id, quarter)   # (for sp, quarter is a sentinel e.g. "ALL")
+  sell_transaction_id          # NULL = ongoing row; set = closed (sold) row
+  quarter : string             # "2026-Q3"
+  period_start, period_end : date
+  quantity, days
+  buy_price_per_unit, sell_price_per_unit
+  aaoifi_rate, aaoifi_amount   # per-day rate used, quantity x days x rate
+  sp_rate, sp_amount           # percent used, profit x percent (closed rows only)
+  aaoifi_paid, aaoifi_paid_on
+  sp_paid, sp_paid_on
+  notes
+  index: unique(asset_lot_id, quarter) WHERE sell_transaction_id IS NULL
+  index: unique(asset_lot_id, quarter, sell_transaction_id) WHERE NOT NULL
+
+purification_rates            # "Totals & Purification" tab of the spreadsheet
+  user_id, asset_id
+  quarter : string
+  aaoifi_per_day : decimal     # per share per day
+  sp_percentage  : decimal     # percent of profit
+  index: unique(asset_id, quarter)
 ```
 
 Open operations are not a table — they are simply `asset_lots` with
@@ -151,27 +172,23 @@ Hook: call after create/update/delete of a `buy`/`sell` transaction for that
 asset+portfolio (the app already supports amending these — see
 `FINANCIALLY_AMENDABLE_TYPE_KEYS`).
 
-### 4.2 Purification generation (manual "close quarter")
+### 4.2 Purification generation
 
-Never wipes user data — **upserts** by `(asset_lot_id, quarter)`, preserving
-`status`, `amount`, `done_on`, `notes` for unchanged segments.
+`LotLedger.generate_purifications!(portfolio_id, asset_id = nil)` — pure logic in
+`LotLedger::Purification.compute` (no Rails; unit-tested against the spreadsheet's
+47 rows). For every lot it walks each quarter from the buy quarter through the
+current one: closures inside the quarter become closed rows, the remaining quantity
+becomes one ongoing row. Rows are upserted by `(lot, quarter, sale)` so paid flags
+are preserved; stale rows are deleted.
 
-- **aaoifi:** for each lot, walk its share-count timeline (buys add, FIFO sells
-  subtract), clip to each **completed** calendar quarter the lot had shares in,
-  and compute `days` + `share_days` + representative `quantity` per quarter.
-  One entry per `(lot, quarter)`.
-- **sp:** one entry per lot spanning `opened_on → (fully-closed date or today)`,
-  `quarter = "ALL"`, no split.
-
-The **current, unfinished quarter** is shown as *accruing — not due* and is only
-turned into a finalized entry once the user closes that quarter. "Close quarter"
-finalizes every quarter up to the last fully-completed one.
+Backfill / regenerate everything: `bin/rails lot_ledger:purify`.
 
 ---
 
 ## 5. v1 assumptions (change later if needed)
 
-- **Day count:** inclusive of the buy date, exclusive of the sell date.
+- **Day count:** both ends inclusive (matches the spreadsheet). Superseded the
+  earlier "exclusive of the sell date" convention.
 - **`stock_dividend`** transactions create a **zero-cost lot**, so bonus shares
   flow through both FIFO matching and purification.
 - **Splits** are out of scope for v1 (no split transaction type today).
@@ -185,6 +202,7 @@ finalizes every quarter up to the last fully-completed one.
 ## 6. Out of scope (future)
 
 - Automatic quarter-close scheduling.
-- In-app purification **amount** computation (rates/rules per asset).
+- Fetching AAOIFI / S&P rates automatically (they are entered by hand per quarter).
+- Partial payments (a paid flag is all-or-nothing per purification).
 - Specific-lot or LIFO matching.
 - Corporate-action (split/merger) lot adjustments.

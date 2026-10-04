@@ -20,7 +20,7 @@ namespace :lot_ledger do
     puts "Done. asset_lots=#{AssetLot.count} lot_closures=#{LotClosure.count}"
   end
 
-  desc "Generate purification entries for completed quarters (optionally TODAY=YYYY-MM-DD)"
+  desc "(Re)generate quarterly purification rows from the lot ledger (optionally TODAY=YYYY-MM-DD)"
   task purify: :environment do
     today = ENV["TODAY"].present? ? Date.parse(ENV["TODAY"]) : Date.current
     Portfolio.find_each do |portfolio|

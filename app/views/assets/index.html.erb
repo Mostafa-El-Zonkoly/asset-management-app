@@ -12,7 +12,7 @@
 <% end %>
 
 <div class="mt-6 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-  <table data-controller="sortable-table" class="w-full min-w-[800px] text-left text-sm">
+  <table data-controller="sortable-table" class="w-full min-w-[1000px] text-left text-sm">
     <thead class="bg-slate-50 text-xs uppercase text-slate-500">
       <tr>
         <th class="px-3 py-2">Code</th>
@@ -24,6 +24,9 @@
         <th>Value</th>
         <th>Unreal %</th>
         <th>Zakaa %</th>
+        <th title="AAOIFI purification per share per day, current quarter">AAOIFI/day</th>
+        <th title="S&P purification % of profit, current quarter">S&amp;P %</th>
+        <th title="Outstanding (unpaid) purification, all quarters">Purif. due</th>
         <th></th>
       </tr>
     </thead>
@@ -42,6 +45,11 @@
           <td><%= r ? number_with_precision(r.current_value, precision: 2) : "—" %></td>
           <td><%= r && !a.wallet? ? format_pnl_percent(r.unrealised_gain_pct, precision: 2) : "—" %></td>
           <td class="tabular-nums"><%= number_with_precision(a.zaka_percentage, precision: 2) %>%</td>
+          <% pr = @purification_rates[a.id] %>
+          <% ps = @purification_summaries[a.id] %>
+          <td class="tabular-nums"><%= pr ? number_with_precision(pr.aaoifi_per_day, precision: 6, strip_insignificant_zeros: true) : "—" %></td>
+          <td class="tabular-nums"><%= pr ? "#{number_with_precision(pr.sp_percentage, precision: 4, strip_insignificant_zeros: true)}%" : "—" %></td>
+          <td class="tabular-nums <%= ps&.outstanding&.positive? ? 'font-medium text-amber-700' : '' %>" title="<%= ps ? "Total #{number_with_precision(ps.total, precision: 2, delimiter: ',')} · Paid #{number_with_precision(ps.paid, precision: 2, delimiter: ',')} (#{ps.currency})" : "" %>"><%= ps ? number_with_precision(ps.outstanding, precision: 2, delimiter: ",") : "—" %></td>
           <td><%= link_to "Prices", prices_path(asset_id: a.id, return_to: "asset", anchor: "add-price"), class: "text-xs text-blue-600 hover:underline" %></td>
         </tr>
       <% end %>

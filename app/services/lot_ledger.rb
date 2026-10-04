@@ -2,10 +2,10 @@
 
 # ActiveRecord wrapper around the pure LotLedger::Fifo and LotLedger::Purification
 # logic. Reads buy/sell/stock_dividend transactions, recomputes FIFO lots and
-# closures, and generates the purification (تطهير) list.
+# closures, and generates the purification (تطهير) rows.
 #
 #   LotLedger.rebuild!(portfolio_id, asset_id)             # after any buy/sell edit
-#   LotLedger.generate_purifications!(portfolio_id)        # manual "close quarter"
+#   LotLedger.generate_purifications!(portfolio_id)        # (re)generate quarterly purification rows
 module LotLedger
   LEDGER_TYPE_KEYS = %w[buy sell stock_dividend].freeze
 
@@ -71,44 +71,66 @@ module LotLedger
     end
   end
 
-  # Generate/refresh purification entries for completed quarters. Upserts by
-  # (asset_lot, quarter) so manually-entered status/amount/notes are preserved.
+  # Generate/refresh the purification rows (see LotLedger::Purification) for a
+  # portfolio, optionally limited to one asset. Idempotent: rows are upserted by
+  # (lot, quarter, sale) so the paid flags survive (unless that purification's
+  # amount changed), and rows the ledger no longer produces (e.g. after a sale is
+  # edited or removed) are deleted.
   def generate_purifications!(portfolio_id, asset_id = nil, today: Date.current)
-    portfolio = Portfolio.find(portfolio_id)
-    method = portfolio.purification_method
-
     lots_scope = AssetLot.where(portfolio_id: portfolio_id)
     lots_scope = lots_scope.where(asset_id: asset_id) if asset_id
 
     lots_scope.group_by(&:asset_id).each do |aid, lots|
+      lot_by_buy = lots.index_by(&:buy_transaction_id)
       buy_by_lot_id = lots.index_by(&:id).transform_values(&:buy_transaction_id)
+
       lot_dicts = lots.map do |l|
         { buy_id: l.buy_transaction_id, opened_on: l.opened_on,
-          original_qty: l.original_quantity.to_d }
+          original_qty: l.original_quantity.to_d, buy_price: l.buy_price_per_unit.to_d }
       end
       closures = LotClosure.where(asset_lot_id: lots.map(&:id)).map do |c|
-        { buy_id: buy_by_lot_id[c.asset_lot_id], closed_on: c.closed_on,
-          qty: c.quantity.to_d }
+        { buy_id: buy_by_lot_id[c.asset_lot_id], sell_id: c.sell_transaction_id,
+          closed_on: c.closed_on, qty: c.quantity.to_d,
+          buy_price: c.buy_price_per_unit.to_d, sell_price: c.sell_price_per_unit.to_d }
+      end
+      rates = PurificationRate.where(asset_id: aid).each_with_object({}) do |r, h|
+        h[r.quarter] = Purification::Rate.new(per_day: r.aaoifi_per_day.to_d, sp_percentage: r.sp_percentage.to_d)
       end
 
-      entries = Purification.compute(
-        lots: lot_dicts, closures: closures, method: method, today: today
-      )
+      rows = Purification.compute(lots: lot_dicts, closures: closures, rates: rates, today: today)
 
-      lot_by_buy = lots.index_by(&:buy_transaction_id)
-      entries.each do |e|
-        lot = lot_by_buy[e.buy_id]
-        rec = PurificationEntry.find_or_initialize_by(asset_lot_id: lot.id, quarter: e.quarter)
-        rec.portfolio_id = portfolio_id
-        rec.asset_id = aid
-        rec.method = e.method
-        rec.period_start = e.period_start
-        rec.period_end = e.period_end
-        rec.quantity = e.quantity
-        rec.days = e.days
-        rec.share_days = e.share_days
-        rec.status ||= "pending" # keep existing status/amount/done_on/notes
-        rec.save!
+      ActiveRecord::Base.transaction do
+        kept_ids = rows.map do |row|
+          lot = lot_by_buy[row.buy_id]
+          rec = PurificationEntry.find_or_initialize_by(
+            asset_lot_id: lot.id, quarter: row.quarter, sell_transaction_id: row.sell_id
+          )
+          rec.assign_attributes(
+            portfolio_id: portfolio_id, asset_id: aid,
+            period_start: row.period_start, period_end: row.period_end,
+            quantity: row.quantity, days: row.days,
+            buy_price_per_unit: row.buy_price, sell_price_per_unit: row.sell_price,
+            aaoifi_rate: row.aaoifi_rate, aaoifi_amount: row.aaoifi_amount,
+            sp_rate: row.sp_rate, sp_amount: row.sp_amount
+          )
+          # A paid flag only vouches for the amount that was paid: if a rate or a
+          # transaction edit changes the amount, the purification is unpaid again
+          # (visible as outstanding) rather than silently "paid" for another sum.
+          if rec.persisted?
+            if rec.aaoifi_amount_changed?
+              rec.aaoifi_paid = false
+              rec.aaoifi_paid_on = nil
+            end
+            if rec.sp_amount_changed?
+              rec.sp_paid = false
+              rec.sp_paid_on = nil
+            end
+          end
+          rec.save!
+          rec.id
+        end
+
+        PurificationEntry.where(asset_lot_id: lots.map(&:id)).where.not(id: kept_ids).delete_all
       end
     end
   end

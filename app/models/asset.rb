@@ -19,6 +19,8 @@ class Asset < ApplicationRecord
   has_many :portfolio_transactions, dependent: :restrict_with_error
   has_many :asset_prices, dependent: :destroy
   has_many :asset_estimates, dependent: :destroy
+  has_many :purification_rates, dependent: :destroy
+  has_many :purification_entries, dependent: :delete_all
   has_many :related_wallet_transactions, class_name: "PortfolioTransaction", foreign_key: :related_wallet_id, dependent: :restrict_with_error, inverse_of: :related_wallet
   has_many :transfer_to_transactions, class_name: "PortfolioTransaction", foreign_key: :transfer_to_wallet_id, dependent: :restrict_with_error, inverse_of: :transfer_to_wallet
 

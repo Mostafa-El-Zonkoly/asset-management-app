@@ -1,0 +1,71 @@
+<%# locals: asset, purification (PurificationStats.for_asset), current_quarter %>
+<% money = ->(v) { number_with_precision(v, precision: 2, delimiter: ",") } %>
+<% s = purification[:summary] %>
+<% current = purification[:quarters].find { |q| q[:quarter] == current_quarter } %>
+<% rate = current && current[:rate] %>
+<div class="mt-6 rounded-xl border border-slate-200 bg-white shadow-sm">
+  <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
+    <span class="font-medium">Purification (تطهير)</span>
+    <%= link_to "Open purification list", purification_entries_path(quarter: current_quarter), class: "text-sm text-blue-600 hover:underline" %>
+  </div>
+
+  <div class="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-5">
+    <div>
+      <p class="text-xs uppercase text-slate-500">AAOIFI / share / day <span class="normal-case text-slate-400">(<%= current_quarter %>)</span></p>
+      <p class="mt-1 font-semibold tabular-nums"><%= rate ? number_with_precision(rate.aaoifi_per_day, precision: 6, strip_insignificant_zeros: true) : "—" %></p>
+    </div>
+    <div>
+      <p class="text-xs uppercase text-slate-500">S&amp;P % of profit <span class="normal-case text-slate-400">(<%= current_quarter %>)</span></p>
+      <p class="mt-1 font-semibold tabular-nums"><%= rate ? "#{number_with_precision(rate.sp_percentage, precision: 4, strip_insignificant_zeros: true)}%" : "—" %></p>
+    </div>
+    <div>
+      <p class="text-xs uppercase text-slate-500">Total purification <% if s %><span class="normal-case text-slate-400">(<%= s.currency %>)</span><% end %></p>
+      <p class="mt-1 font-semibold tabular-nums"><%= s ? money.(s.total) : "—" %></p>
+      <% if s %><p class="text-xs text-slate-500 tabular-nums">AAOIFI <%= money.(s.aaoifi_total) %> · S&amp;P <%= money.(s.sp_total) %></p><% end %>
+    </div>
+    <div>
+      <p class="text-xs uppercase text-slate-500">Paid</p>
+      <p class="mt-1 font-semibold tabular-nums text-emerald-600"><%= s ? money.(s.paid) : "—" %></p>
+      <% if s %><p class="text-xs text-slate-500 tabular-nums">AAOIFI <%= money.(s.aaoifi_paid) %> · S&amp;P <%= money.(s.sp_paid) %></p><% end %>
+    </div>
+    <div>
+      <p class="text-xs uppercase text-slate-500">Outstanding</p>
+      <p class="mt-1 font-semibold tabular-nums text-amber-600"><%= s ? money.(s.outstanding) : "—" %></p>
+      <% if s %><p class="text-xs text-slate-500 tabular-nums">AAOIFI <%= money.(s.aaoifi_outstanding) %> · S&amp;P <%= money.(s.sp_outstanding) %></p><% end %>
+    </div>
+  </div>
+
+  <% if purification[:quarters].any? %>
+    <div class="overflow-x-auto border-t border-slate-100">
+      <table class="w-full min-w-[40rem] text-left text-sm">
+        <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+          <tr>
+            <th class="px-4 py-2">Quarter</th>
+            <th class="px-4 py-2 text-right">AAOIFI / day</th>
+            <th class="px-4 py-2 text-right">S&amp;P %</th>
+            <th class="px-4 py-2 text-right">AAOIFI</th>
+            <th class="px-4 py-2 text-right">S&amp;P</th>
+            <th class="px-4 py-2 text-right">Outstanding</th>
+            <th class="px-4 py-2"></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% purification[:quarters].each do |q| %>
+            <% qs = q[:summary] %>
+            <tr class="border-t border-slate-100">
+              <td class="px-4 py-2 font-medium"><%= q[:quarter] %><% if q[:quarter] == current_quarter %> <span class="ml-1 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium uppercase text-amber-700">Running</span><% end %></td>
+              <td class="px-4 py-2 text-right tabular-nums"><%= q[:rate] ? number_with_precision(q[:rate].aaoifi_per_day, precision: 6, strip_insignificant_zeros: true) : "—" %></td>
+              <td class="px-4 py-2 text-right tabular-nums"><%= q[:rate] ? "#{number_with_precision(q[:rate].sp_percentage, precision: 4, strip_insignificant_zeros: true)}%" : "—" %></td>
+              <td class="px-4 py-2 text-right tabular-nums"><%= qs ? money.(qs.aaoifi_total) : "—" %></td>
+              <td class="px-4 py-2 text-right tabular-nums"><%= qs ? money.(qs.sp_total) : "—" %></td>
+              <td class="px-4 py-2 text-right tabular-nums <%= qs && qs.outstanding.positive? ? 'text-amber-700 font-medium' : 'text-slate-500' %>"><%= qs ? money.(qs.outstanding) : "—" %></td>
+              <td class="px-4 py-2 text-right"><%= link_to "Open", purification_entries_path(quarter: q[:quarter]), class: "text-xs text-blue-600 hover:underline" %></td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% else %>
+    <p class="border-t border-slate-100 px-4 py-4 text-sm text-slate-600">No purification yet. Rows appear once this asset has buy transactions; set its quarterly rates on the purification list.</p>
+  <% end %>
+</div>
