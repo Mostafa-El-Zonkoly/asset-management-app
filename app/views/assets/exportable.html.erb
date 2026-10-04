@@ -54,11 +54,11 @@
           <th class="px-3 py-2">Ticker</th>
           <th class="px-3 py-2 text-right">Quantity</th>
           <th class="px-3 py-2 text-right">Weight</th>
+          <th class="px-3 py-2 text-right">Current amount</th>
           <th class="px-3 py-2 text-right">Average price</th>
           <th class="px-3 py-2 text-right">Profit / Loss %</th>
           <th class="px-3 py-2 text-right">Current price</th>
           <th class="px-3 py-2 text-right">Total purchase</th>
-          <th class="px-3 py-2 text-right">Current amount</th>
         </tr>
       </thead>
       <tbody>
@@ -70,11 +70,11 @@
             <td class="px-3 py-2 font-mono"><%= link_to a.code, a, class: "text-blue-600 hover:underline" %></td>
             <td class="px-3 py-2 text-right tabular-nums" data-sort-value="<%= row.quantity.to_f %>"><%= number_with_precision(row.quantity, precision: 4, strip_insignificant_zeros: true) %></td>
             <td class="px-3 py-2 text-right tabular-nums" data-sort-value="<%= row.weight_pct.to_f %>"><%= row.weight_pct ? "#{number_with_precision(row.weight_pct, precision: 2)}%" : "—" %></td>
+            <td class="px-3 py-2 text-right tabular-nums" data-sort-value="<%= row.current_value.to_f %>"><%= number_with_precision(row.current_value, precision: 2, delimiter: ",") %></td>
             <td class="px-3 py-2 text-right tabular-nums" data-sort-value="<%= ap.to_f %>"><%= ap ? number_with_precision(ap, precision: 4, delimiter: ",") : "—" %></td>
             <td class="px-3 py-2 text-right" data-sort-value="<%= row.total_gain_pct.to_f %>"><%= format_pnl_percent(row.total_gain_pct, precision: 2) %></td>
             <td class="px-3 py-2 text-right tabular-nums" data-sort-value="<%= cp.to_f %>"><%= cp ? number_with_precision(cp, precision: 4, delimiter: ",") : "—" %></td>
             <td class="px-3 py-2 text-right tabular-nums" data-sort-value="<%= row.cost.to_f %>"><%= number_with_precision(row.cost, precision: 2, delimiter: ",") %></td>
-            <td class="px-3 py-2 text-right tabular-nums" data-sort-value="<%= row.current_value.to_f %>"><%= number_with_precision(row.current_value, precision: 2, delimiter: ",") %></td>
           </tr>
         <% end %>
       </tbody>
