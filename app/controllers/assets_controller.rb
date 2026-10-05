@@ -6,6 +6,23 @@ class AssetsController < ApplicationController
   CHART_RANGE_KEYS = %w[cw cm cy 1w 1m 3m ytd 1y].freeze
   PRICE_ROWS_PER_PAGE = 25
 
+  # Column orderings for the exportable-assets sheet (Ticker is always first).
+  # The user switches between these two arrangements; both the table and the CSV
+  # honour the choice.
+  EXPORT_LAYOUTS = {
+    "a" => %i[avg_price weight profit current_price current_amount purchase quantity],
+    "b" => %i[current_amount weight profit avg_price current_price purchase quantity]
+  }.freeze
+  EXPORT_HEADERS = {
+    avg_price:      "Average price",
+    weight:         "Weight",
+    profit:         "Profit / Loss %",
+    current_price:  "Current price",
+    current_amount: "Current amount",
+    purchase:       "Total purchase",
+    quantity:       "Quantity"
+  }.freeze
+
   before_action :set_asset, only: %i[show edit update destroy fetch_price]
 
   def summary
@@ -35,9 +52,11 @@ class AssetsController < ApplicationController
   # price and totals, filterable by name, position role and portfolio(s), and
   # downloadable as CSV. All money is in the reporting currency so a mixed-currency
   # book stays internally consistent (avg×qty = total purchase, price×qty = amount).
+  # `layout` picks the column order (a / b) for both the table and the CSV.
   def exportable
     @name = params[:name].to_s.strip
     @position_role = %w[all base temporary].include?(params[:position_role].to_s) ? params[:position_role] : "all"
+    @layout = EXPORT_LAYOUTS.key?(params[:layout]) ? params[:layout] : "a"
 
     @portfolios = current_user.portfolios.where(active: true).order(:name)
     raw_ids = params[:portfolio_ids]
@@ -55,7 +74,7 @@ class AssetsController < ApplicationController
     respond_to do |format|
       format.html
       format.csv do
-        send_data exportable_csv(@rows),
+        send_data exportable_csv(@rows, @layout),
           filename: "exportable_assets_#{Date.current.iso8601}.csv",
           type: "text/csv"
       end
@@ -177,23 +196,27 @@ class AssetsController < ApplicationController
     q.nonzero? ? (row.current_value.to_d / q) : nil
   end
 
-  # CSV mirroring the on-screen exportable table. Numbers are plain (no grouping)
-  # so the file re-imports cleanly into a spreadsheet.
-  def exportable_csv(rows)
+  # Raw (unformatted-for-display) CSV cell string for a column key.
+  def export_cell_value(key, row)
+    case key
+    when :avg_price      then avg_price_for(row)&.round(6)&.to_s("F")
+    when :current_price  then current_price_for(row)&.round(6)&.to_s("F")
+    when :weight         then row.weight_pct&.round(2)&.to_s("F")
+    when :profit         then row.total_gain_pct&.round(2)&.to_s("F")
+    when :current_amount then row.current_value.to_d.round(2).to_s("F")
+    when :purchase       then row.cost.to_d.round(2).to_s("F")
+    when :quantity       then row.quantity.to_d.round(6).to_s("F")
+    end
+  end
+
+  # CSV mirroring the on-screen exportable table, in the chosen column order.
+  # Numbers are plain (no grouping) so the file re-imports cleanly.
+  def exportable_csv(rows, layout)
+    order = EXPORT_LAYOUTS.fetch(layout, EXPORT_LAYOUTS["a"])
     CSV.generate do |csv|
-      csv << ["Ticker", "Quantity", "Average Price", "Profit/Loss %", "Weight %",
-              "Current Price", "Total Purchase", "Current Amount"]
+      csv << ["Ticker"] + order.map { |k| EXPORT_HEADERS[k] }
       rows.each do |r|
-        csv << [
-          r.asset.code,
-          r.quantity.to_d.round(6).to_s("F"),
-          avg_price_for(r)&.round(6)&.to_s("F"),
-          r.total_gain_pct&.round(2)&.to_s("F"),
-          r.weight_pct&.round(2)&.to_s("F"),
-          current_price_for(r)&.round(6)&.to_s("F"),
-          r.cost.to_d.round(2).to_s("F"),
-          r.current_value.to_d.round(2).to_s("F")
-        ]
+        csv << [r.asset.code] + order.map { |k| export_cell_value(k, r) }
       end
     end
   end
