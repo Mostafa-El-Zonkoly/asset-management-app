@@ -56,7 +56,7 @@ class AssetSummaryService
           quantity: quantity,
           current_value: role == "all" ? calcs.sum(&:current_value) : slices.sum { |sl| sl[0] },
           cost: role == "all" ? calcs.sum(&:cost_basis) : slices.sum { |sl| sl[1] },
-          total_gain: role == "all" ? calcs.sum(&:total_gain) : slices.sum { |sl| sl[2] },
+          total_gain: role == "all" ? calcs.sum(&:unrealised_gain) : slices.sum { |sl| sl[2] },
           base_value: splits.sum(&:base_value),
           temp_value: splits.sum(&:temp_value),
           portfolio_names: hs.map { |h| h.portfolio.name }.uniq.sort.join(", "),
