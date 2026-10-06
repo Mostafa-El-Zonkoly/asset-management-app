@@ -175,7 +175,11 @@ class PortfolioStatsService
       overall = ids ? sector_sectored_weights(nil) : { by_sector_id: by_sector.transform_keys(&:id), total: sectored_total }
       overall_total = overall[:total]
 
-      qty_by_sector_asset.keys.sort_by(&:label).map do |sector|
+      # Only sectors with at least one asset actually held (quantity > 0); skip
+      # sectors that only contain watchlist / fully-sold (historical) assets.
+      owned_sectors = qty_by_sector_asset.keys.select { |sec| role_qty_by_sector_asset[sec].any? { |_aid, q| q.positive? } }
+
+      owned_sectors.sort_by(&:label).map do |sector|
         value = by_sector[sector]
         owned = role_qty_by_sector_asset[sector].count { |_aid, q| q.positive? }
         watchlist = qty_by_sector_asset[sector].count { |_aid, q| !q.positive? }
