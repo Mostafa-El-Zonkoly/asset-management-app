@@ -13,7 +13,7 @@
   <%= link_to "By sector + speciality", sector_speciality_analysis_portfolios_path(portfolio_ids: @selected_portfolio_ids, position_role: @position_role), class: "rounded-md border border-slate-300 px-3 py-2 text-sm" %>
 </div>
 
-<%= render "portfolios/portfolio_filter", url: sector_analysis_portfolios_path, portfolios: @portfolios, selected_ids: @selected_portfolio_ids, position_role: @position_role %>
+<%= render "portfolios/portfolio_filter", url: sector_analysis_portfolios_path, portfolios: @portfolios, selected_ids: @selected_portfolio_ids, position_role: @position_role, show_unowned: @show_unowned %>
 
 <% if @reporting_currency %>
   <p class="mt-4 text-sm text-slate-600">Figures in reporting currency <span class="font-medium"><%= @reporting_currency.code %></span>.</p>
@@ -64,7 +64,7 @@
 </details>
 
 <% if @sector_rows.blank? %>
-  <p class="mt-8 text-slate-500">No direct stock holdings with a sector assigned were found.</p>
+  <p class="mt-8 text-slate-500"><%= @show_unowned ? "No direct stock holdings with a sector assigned were found." : "No sectors with currently owned stock holdings were found." %></p>
 <% else %>
   <div class="mt-8 overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
     <table id="sector-table" class="min-w-full text-sm">

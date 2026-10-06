@@ -20,6 +20,12 @@
             options_for_select([["All", "all"], ["Base", "base"], ["Temporary", "temporary"]], pr),
             class: "rounded-md border border-slate-300 px-2 py-1 text-sm" %>
     </label>
+    <% unless local_assigns[:show_unowned].nil? %>
+      <label class="inline-flex items-center gap-1.5 text-sm text-slate-700">
+        <%= check_box_tag :show_unowned, "1", show_unowned, class: "rounded border-slate-300 text-blue-600 focus:ring-blue-500" %>
+        Show not-owned sectors
+      </label>
+    <% end %>
     <div class="ml-auto flex items-center gap-2">
       <%= submit_tag "Apply", class: "rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700" %>
       <% if selected_ids.any? %>

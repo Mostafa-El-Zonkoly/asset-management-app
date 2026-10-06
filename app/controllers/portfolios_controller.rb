@@ -237,7 +237,8 @@ class PortfoliosController < ApplicationController
     @missing_fx_codes = PortfolioStatsService.missing_fx_currency_codes_for_reporting
     @included_total = PortfolioStatsService.included_total_value(@selected_portfolio_ids.presence)
     @position_role = position_role_param
-    @sector_rows = PortfolioStatsService.cross_portfolio_sector_analysis(@selected_portfolio_ids.presence, position_role: @position_role)
+    @show_unowned = params[:show_unowned] == "1"
+    @sector_rows = PortfolioStatsService.cross_portfolio_sector_analysis(@selected_portfolio_ids.presence, position_role: @position_role, include_unowned: @show_unowned)
     @sectored_total = @sector_rows.sum { |r| r[:value] }
     @targets_by_sector_id = SectorTarget.all.index_by(&:sector_id)
     @total_target_pct = @targets_by_sector_id.values.sum { |t| t.target_percentage.to_d }

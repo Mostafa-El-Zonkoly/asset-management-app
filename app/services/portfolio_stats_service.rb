@@ -137,7 +137,7 @@ class PortfolioStatsService
     # Percentages:
     #   - pct_of_sectored: share of total value of all sectored assets (across all portfolios)
     #   - pct_of_included: share of total value of portfolios with include_in_combined_percent
-    def cross_portfolio_sector_analysis(portfolio_ids = nil, position_role: "all")
+    def cross_portfolio_sector_analysis(portfolio_ids = nil, position_role: "all", include_unowned: false)
       role = position_role.to_s
       by_sector = Hash.new(0.to_d)
       cost_by_sector = Hash.new(0.to_d)
@@ -175,9 +175,12 @@ class PortfolioStatsService
       overall = ids ? sector_sectored_weights(nil) : { by_sector_id: by_sector.transform_keys(&:id), total: sectored_total }
       overall_total = overall[:total]
 
-      # Only sectors with at least one asset actually held (quantity > 0); skip
-      # sectors that only contain watchlist / fully-sold (historical) assets.
-      owned_sectors = qty_by_sector_asset.keys.select { |sec| role_qty_by_sector_asset[sec].any? { |_aid, q| q.positive? } }
+      # By default only sectors with at least one asset actually held (quantity > 0);
+      # include_unowned: true also lists watchlist / fully-sold (historical) sectors.
+      owned_sectors = qty_by_sector_asset.keys
+      unless include_unowned
+        owned_sectors = owned_sectors.select { |sec| role_qty_by_sector_asset[sec].any? { |_aid, q| q.positive? } }
+      end
 
       owned_sectors.sort_by(&:label).map do |sector|
         value = by_sector[sector]
