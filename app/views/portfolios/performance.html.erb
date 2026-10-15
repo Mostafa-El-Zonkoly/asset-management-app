@@ -12,6 +12,12 @@
   # Excess return in percentage POINTS (spec #11): "+3.2 pp" / "−1.4 pp".
   pp_fmt = ->(v) { v.nil? ? nil : "#{v >= 0 ? '+' : '−'}#{number_with_precision(v.abs, precision: 1)} pp" }
   excess_periods = %i[m3 ytd y1 inception]
+  wealth = @basis == "wealth"
+  basis_tip = {
+    "invested" => "Invested TWR: measures the performance of capital while invested, neutralizing cash flows.",
+    "wealth"   => "Wealth Return: measures the performance of total managed capital, including cash retained after reducing market exposure. External deposits and withdrawals are neutralized."
+  }
+  twr_label = wealth ? "Wealth Return" : "TWR"
 %>
 <div class="flex flex-wrap items-center justify-between gap-3">
   <div>
@@ -29,6 +35,14 @@
   <div>
     <label class="block text-xs font-medium uppercase text-slate-500">Show</label>
     <%= select_tag :metric, options_for_select([["Return %", "pct"], ["P&L (#{@reporting_currency&.code})", "pnl"]], @metric), class: "mt-1 rounded-md border border-slate-300 px-2 py-2 text-sm" %>
+  </div>
+  <div>
+    <label class="block text-xs font-medium uppercase text-slate-500" title="<%= basis_tip['invested'] %> &#10;&#10; <%= basis_tip['wealth'] %>">Basis</label>
+    <%= select_tag :basis, options_for_select([["Invested TWR", "invested"], ["Wealth incl. cash", "wealth"]], @basis), title: basis_tip[@basis], class: "mt-1 rounded-md border border-slate-300 px-2 py-2 text-sm" %>
+  </div>
+  <div>
+    <label class="block text-xs font-medium uppercase text-slate-500" title="Calendar returns: one row per quarter or year, each opening at the previous period's closing balance.">Calendar</label>
+    <%= select_tag :calendar, options_for_select([["Quarterly", "quarter"], ["Yearly", "year"], ["Hide", "none"]], @calendar_unit), class: "mt-1 rounded-md border border-slate-300 px-2 py-2 text-sm" %>
   </div>
   <div>
     <label class="block text-xs font-medium uppercase text-slate-500">Normalization</label>
@@ -59,6 +73,12 @@
   </p>
 <% end %>
 
+<% if wealth %>
+  <p class="mt-3 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900">
+    <strong>Wealth Return</strong> — <%= basis_tip["wealth"] %> Wealth = holdings value + cash. If the portfolio has a <strong>liquidity wallet</strong> (set on the portfolio's edit page) the cash is that wallet's balance; otherwise it is the portfolio's own cash ledger from its migration date. Selling a stock to cash — or moving the proceeds between the portfolio and its liquidity wallet — does not change wealth; only price moves, dividends and fees do. Money deposited into or withdrawn from outside is neutralised. Cells show N/A (reason on hover) where cash history cannot be reconstructed reliably, and a series stays valid up to the last reliable date.
+  </p>
+<% end %>
+
 <%# Normalized comparison chart %>
 <div class="mt-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
      data-controller="perf-chart"
@@ -67,7 +87,9 @@
      data-perf-chart-portfolio-ids-value="<%= @selected_portfolio_ids.join(',') %>"
      data-perf-chart-range-value="<%= @chart_range %>"
      data-perf-chart-mode-value="<%= @chart_mode %>"
-     data-perf-chart-benchmark-value="<%= @chart_benchmark %>">
+     data-perf-chart-benchmark-value="<%= @chart_benchmark %>"
+     data-perf-chart-basis-value="<%= @basis %>"
+     data-perf-chart-combined-value="<%= @chart_combined ? true : false %>">
   <div class="flex flex-wrap items-center justify-between gap-2">
     <h2 class="font-medium text-slate-900">Normalized comparison <span class="text-xs font-normal text-slate-400">(compounded returns · start = 100)</span></h2>
     <div class="flex flex-wrap gap-1 text-xs">
@@ -80,10 +102,23 @@
 
   <div class="mt-3 flex flex-wrap items-center gap-4 text-sm">
     <div class="inline-flex items-center gap-1">
+      <span class="text-xs font-medium uppercase text-slate-500">Basis</span>
+      <button type="button" data-perf-chart-target="basisButton" data-action="perf-chart#setBasis" data-basis="invested" title="<%= basis_tip['invested'] %>"
+              class="rounded px-2 py-1 text-xs font-medium <%= wealth ? 'bg-slate-100 text-slate-700' : 'bg-blue-600 text-white' %>">Invested TWR</button>
+      <button type="button" data-perf-chart-target="basisButton" data-action="perf-chart#setBasis" data-basis="wealth" title="<%= basis_tip['wealth'] %>"
+              class="rounded px-2 py-1 text-xs font-medium <%= wealth ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700' %>">Wealth incl. cash</button>
+    </div>
+    <div class="inline-flex items-center gap-1">
       <span class="text-xs font-medium uppercase text-slate-500">View</span>
       <button type="button" data-perf-chart-target="viewButton" data-action="perf-chart#setView" data-view="index" class="rounded px-2 py-1 text-xs font-medium bg-blue-600 text-white">Index</button>
       <button type="button" data-perf-chart-target="viewButton" data-action="perf-chart#setView" data-view="drawdown" class="rounded px-2 py-1 text-xs font-medium bg-slate-100 text-slate-700">Drawdown</button>
     </div>
+    <% if @selected_portfolio_ids.size > 1 %>
+      <label class="inline-flex items-center gap-1.5" title="Adds one line for all selected portfolios combined. Transfers between them net to zero.">
+        <input type="checkbox" <%= "checked" if @chart_combined %> data-action="perf-chart#toggleCombined" class="rounded border-slate-300">
+        <span>All-portfolios line</span>
+      </label>
+    <% end %>
     <label class="inline-flex items-center gap-1.5" title="Benchmarks are rebased to the same comparison start date as the selected portfolios.">
       <input type="checkbox" <%= "checked" if @chart_benchmark %> data-action="perf-chart#toggleBenchmark" class="rounded border-slate-300">
       <span>Show benchmarks</span>
@@ -95,7 +130,8 @@
     <p data-perf-chart-target="commonNote" hidden class="text-xs text-slate-500"></p>
   </div>
 
-  <p data-perf-chart-target="empty" hidden class="mt-6 text-sm text-slate-500">N/A — insufficient historical data to chart the selected portfolios.</p>
+  <p data-perf-chart-target="basisNote" class="mt-2 text-xs text-slate-500"></p>
+  <p data-perf-chart-target="empty" hidden class="mt-6 text-sm text-slate-500">N/A — insufficient historical data to chart the selected portfolios<%= " (Wealth needs an opening-capital baseline and a non-negative cash history for every selected portfolio)" if wealth %>.</p>
   <div class="mt-3" style="height:20rem"><canvas data-perf-chart-target="canvas"></canvas></div>
   <p class="mt-2 text-xs text-slate-400">
     Portfolios are solid lines; <strong>benchmarks are dashed</strong>. Own inception: each series starts at 100 on its own first snapshot. Common start: all series (and benchmarks) rebased to 100 on the latest inception among the selected portfolios — the fair same-period comparison. Benchmarks are reference series only and never change the common start date.
@@ -106,6 +142,45 @@
     </p>
   <% end %>
 </div>
+
+<%# Calendar returns: quarter / year + overall, per portfolio %>
+<% if @calendar.present? %>
+  <% money = ->(v) { number_with_precision(v, precision: 0, delimiter: ",") } %>
+  <% signed_money = ->(v) { (v.to_d.positive? ? "+" : "") + number_with_precision(v, precision: 0, delimiter: ",") } %>
+  <div class="mt-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <h2 class="font-medium text-slate-900">Calendar returns <span class="text-xs font-normal text-slate-400">(<%= @calendar_unit == "year" ? "yearly" : "quarterly" %> · <%= wealth ? "Wealth incl. cash" : "Invested TWR" %>)</span></h2>
+    <p class="mt-1 text-xs text-slate-500">Each period opens at the previous period's closing balance. Money you add or withdraw changes the balance but is neutralised in the return, so <strong>Return</strong> is the performance of the money that was actually invested, and <strong>Gain</strong> = closing − opening − net money added. The overall return is the periods chained together.</p>
+    <% @calendar.each do |entry| %>
+      <% periods = @calendar_unit == "year" ? entry[:years] : entry[:quarters] %>
+      <div class="mt-4 overflow-x-auto">
+        <p class="text-sm font-medium text-slate-800"><%= entry[:label] %>
+          <% if entry[:note] %><span class="ml-1 text-[11px] font-normal text-amber-600" title="<%= entry[:note] %>"><%= entry[:note].length > 60 ? "N/A or partial — hover" : entry[:note] %></span><% end %>
+        </p>
+        <% if periods.empty? && entry[:overall].nil? %>
+          <p class="mt-1 text-xs text-slate-400">N/A — not enough history.</p>
+        <% else %>
+          <table class="mt-1 w-full min-w-[34rem] text-left text-sm">
+            <thead class="text-[11px] uppercase tracking-wide text-slate-500">
+              <tr><th class="py-1 pr-3">Period</th><th class="py-1 pr-3 text-right">Opening</th><th class="py-1 pr-3 text-right">Added / withdrawn</th><th class="py-1 pr-3 text-right">Gain</th><th class="py-1 pr-3 text-right">Closing</th><th class="py-1 text-right">Return</th></tr>
+            </thead>
+            <tbody>
+              <% (periods + [entry[:overall]].compact).each do |pd| %>
+                <tr class="border-t border-slate-100 <%= 'bg-slate-50 font-medium' if pd.unit == :overall %>">
+                  <td class="py-1.5 pr-3"><%= pd.label %><% unless pd.complete %> <span class="text-[10px] text-slate-400">(to date)</span><% end %></td>
+                  <td class="py-1.5 pr-3 text-right tabular-nums"><%= money.call(pd.opening) %></td>
+                  <td class="py-1.5 pr-3 text-right tabular-nums"><%= pd.net_flow.zero? ? "—" : signed_money.call(pd.net_flow) %></td>
+                  <td class="py-1.5 pr-3 text-right tabular-nums <%= pnl_class_for(pd.gain) %>"><%= signed_money.call(pd.gain) %></td>
+                  <td class="py-1.5 pr-3 text-right tabular-nums"><%= money.call(pd.closing) %></td>
+                  <td class="py-1.5 text-right tabular-nums <%= pnl_class_for(pd.return_pct) %>"><%= format_upside(pd.return_pct) %></td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+<% end %>
 
 <%# Risk summary cards + risk-vs-return scatter — PORTFOLIOS ONLY (spec #17). %>
 <% prisks = @rows.select { |r| r.scope.is_a?(Portfolio) && @risk_by_row&.dig(r.scope.id) }.map { |r| [r, @risk_by_row[r.scope.id]] } %>
@@ -156,8 +231,8 @@
     <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
       <tr>
         <th colspan="2" class="px-4 py-2"></th>
-        <th colspan="5" class="border-l border-slate-200 px-4 py-2 text-center" title="Time-weighted returns — external contributions/withdrawals are neutralized and daily returns are geometrically chained.">Trailing TWR</th>
-        <th colspan="3" class="border-l border-slate-200 px-4 py-2 text-center" title="Time-weighted returns from the period start (or inception) through today; periods under a year are not annualized.">Calendar TWR</th>
+        <th colspan="5" class="border-l border-slate-200 px-4 py-2 text-center" title="<%= wealth ? basis_tip['wealth'] : 'Time-weighted returns — external contributions/withdrawals are neutralized and daily returns are geometrically chained.' %>">Trailing <%= twr_label %></th>
+        <th colspan="3" class="border-l border-slate-200 px-4 py-2 text-center" title="Returns from the period start (or inception) through today; periods under a year are not annualized.">Calendar <%= twr_label %></th>
         <th colspan="2" class="border-l border-slate-200 px-4 py-2 text-center">Long term</th>
         <th colspan="5" class="border-l-2 border-slate-300 px-4 py-2 text-center">Risk &amp; efficiency</th>
       </tr>
@@ -165,7 +240,7 @@
         <th class="sticky left-0 z-10 w-44 min-w-[11rem] bg-slate-50 px-4 py-2">Portfolio</th>
         <th class="sticky left-44 z-10 bg-slate-50 px-4 py-2 text-right">Value</th>
         <% ordered.each_with_index do |k, i| %>
-          <th class="px-4 py-2 text-right <%= 'border-l border-slate-200' if [0, 5, 8].include?(i) %>" data-sort-value="" title="<%= 'Time-weighted return since the first snapshot.' if k == :inception %>"><%= k == :inception ? "TWR (incep.)" : labels[k] %></th>
+          <th class="px-4 py-2 text-right <%= 'border-l border-slate-200' if [0, 5, 8].include?(i) %>" data-sort-value="" title="<%= (wealth ? 'Wealth Return since the first valuation on/after the migration date.' : 'Time-weighted return since the first snapshot.') if k == :inception %>"><%= k == :inception ? "#{twr_label} (incep.)" : labels[k] %></th>
         <% end %>
         <th class="px-4 py-2 text-right" title="Money-weighted (annualized IRR) since inception — the investor's actual experience, including the timing of money in and out. Not a TWR.">XIRR/MWR</th>
         <% risk_cols.each_with_index do |(k, label), i| %>
@@ -215,12 +290,17 @@
           </td>
           <td class="sticky left-44 z-10 px-4 py-3 text-right tabular-nums <%= combined ? 'bg-slate-50 font-medium' : 'bg-white' %>" data-sort-value="<%= row.current_value.to_f %>">
             <%= row.current_value ? number_with_precision(row.current_value, precision: 0) : "—" %>
+            <% if wealth && row.cash_weight %>
+              <span class="block text-[10px] font-normal text-slate-500" title="Share of managed wealth held as retained cash vs invested assets on <%= l row.last_date %>">
+                Invested <%= number_with_precision(100 - row.cash_weight, precision: 0) %>% · Cash <%= number_with_precision(row.cash_weight, precision: 0) %>%
+              </span>
+            <% end %>
           </td>
           <% ordered.each_with_index do |key, i| %>
             <% pr = row.periods[key] %>
             <td class="px-4 py-3 text-right tabular-nums <%= 'border-l border-slate-100' if [0, 5, 8].include?(i) %>" data-sort-value="<%= metric_val.call(pr) %>">
               <% if !pr.available %>
-                <span class="text-slate-300" title="Insufficient history">N/A</span>
+                <span class="text-slate-300" title="<%= row.note.presence || 'Insufficient history' %>">N/A</span>
               <% elsif @metric == "pnl" %>
                 <span class="<%= pnl_class_for(pr.pnl) %>"><%= format_pnl_value(pr.pnl, precision: 0) %></span>
               <% else %>
@@ -255,7 +335,14 @@
         </tr>
       <% end %>
       <% if @rows.all? { |r| r.current_value.nil? } %>
-        <tr><td colspan="17" class="px-4 py-6 text-center text-slate-500">No snapshot history yet. Values accrue daily; historical periods fill in as snapshots (or a reconstruction backfill) become available.</td></tr>
+        <tr><td colspan="17" class="px-4 py-6 text-center text-slate-500">
+          <% if wealth %>
+            Wealth Return is N/A for the selected portfolios.
+            <% @rows.select(&:note).each do |r| %><span class="block text-xs text-slate-400"><%= r.label %> — <%= r.note %></span><% end %>
+          <% else %>
+            No snapshot history yet. Values accrue daily; historical periods fill in as snapshots (or a reconstruction backfill) become available.
+          <% end %>
+        </td></tr>
       <% end %>
     </tbody>
 
@@ -324,6 +411,10 @@
   <span><strong>Calendar</strong> MTD/QTD/YTD anchor at the period start or inception (3M ≠ QTD, 1Y ≠ YTD).</span>
   <span><strong>Long term</strong> compounds the full history.</span>
   <span>Internal portfolio-to-portfolio moves net out in “All portfolios”.</span>
+  <span>Table basis: <strong><%= wealth ? "Wealth incl. cash" : "Invested TWR" %></strong> (change in the form above).</span>
+  <% if wealth && @rows.any? { |r| r.note.present? } %>
+    <span class="text-amber-600">N/A rows: <%= @rows.select { |r| r.note.present? }.map { |r| "#{r.label} (#{r.note})" }.join("; ") %></span>
+  <% end %>
   <% if @benchmark_rows.present? %>
     <span><strong>Benchmarks</strong> are the published index return (no cash flows); shown for comparison only and excluded from totals and cards.</span>
   <% end %>

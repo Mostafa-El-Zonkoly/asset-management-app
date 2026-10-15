@@ -3,16 +3,24 @@ import { Controller } from "@hotwired/stimulus"
 // Normalized (base 100) comparison chart. Curves are compounded cash-flow-adjusted
 // returns (server-side), so deposits/withdrawals never move a line. Portfolios are
 // solid; benchmarks dashed. Tooltip shows index, return %, value and investment P&L.
+//
+// Two bases: "invested" (Invested TWR — holdings only) and "wealth" (Wealth Return —
+// holdings + cash retained in the portfolio). Wealth points carry a 6th element, the
+// cash weight %, which the tooltip shows so it is obvious WHY the two views differ.
+const BASIS_NOTES = {
+  invested: "Invested TWR: measures the performance of capital while invested, neutralizing cash flows.",
+  wealth: "Wealth Return: measures the performance of total managed capital, including cash retained after reducing market exposure. External deposits and withdrawals are neutralized.",
+}
 const COLORS = [
   "#2563eb", "#059669", "#d97706", "#dc2626", "#7c3aed",
   "#0891b2", "#db2777", "#65a30d", "#475569", "#ea580c",
 ]
 
 export default class extends Controller {
-  static targets = ["canvas", "rangeButton", "empty", "commonNote", "viewButton"]
+  static targets = ["canvas", "rangeButton", "empty", "commonNote", "viewButton", "basisButton", "basisNote"]
   static values = {
     url: String, role: String, portfolioIds: String, range: String,
-    mode: String, benchmark: Boolean,
+    mode: String, benchmark: Boolean, basis: String, combined: Boolean,
   }
 
   connect() {
@@ -20,6 +28,8 @@ export default class extends Controller {
     this.range = this.rangeValue || "3m"
     this.mode = this.modeValue || "own"
     this.benchmark = this.benchmarkValue || false
+    this.basis = this.basisValue === "wealth" ? "wealth" : "invested"
+    this.combined = this.combinedValue || false
     this.view = "index"
     this.payload = {}
     this.highlight(this.range)
@@ -44,6 +54,27 @@ export default class extends Controller {
   toggleBenchmark(event) {
     this.benchmark = event.target.checked
     this.load()
+  }
+
+  setBasis(event) {
+    this.basis = event.currentTarget.dataset.basis === "wealth" ? "wealth" : "invested"
+    this.paintButtons(this.hasBasisButtonTarget ? this.basisButtonTargets : [], "basis", this.basis)
+    this.load()
+  }
+
+  toggleCombined(event) {
+    this.combined = event.target.checked
+    this.load()
+  }
+
+  paintButtons(buttons, key, current) {
+    buttons.forEach((b) => {
+      const on = b.dataset[key] === current
+      b.classList.toggle("bg-blue-600", on)
+      b.classList.toggle("text-white", on)
+      b.classList.toggle("bg-slate-100", !on)
+      b.classList.toggle("text-slate-700", !on)
+    })
   }
 
   setView(event) {
@@ -76,6 +107,8 @@ export default class extends Controller {
     u.searchParams.set("range", this.range)
     u.searchParams.set("mode", this.mode)
     if (this.benchmark) u.searchParams.set("benchmark", "1")
+    if (this.basis === "wealth") u.searchParams.set("basis", "wealth")
+    if (this.combined) u.searchParams.set("combined", "1")
     if (this.roleValue) u.searchParams.set("role", this.roleValue)
     if (this.portfolioIdsValue) u.searchParams.set("portfolio_ids", this.portfolioIdsValue)
     return u.toString()
@@ -100,6 +133,8 @@ export default class extends Controller {
     const payload = this.payload || {}
     const series = Array.isArray(payload.series) ? payload.series : []
     const drawdown = this.view === "drawdown"
+    const wealth = this.basis === "wealth"
+    if (this.hasBasisNoteTarget) this.basisNoteTarget.textContent = BASIS_NOTES[this.basis]
 
     if (this.hasCommonNoteTarget) {
       if (this.mode === "common" && payload.common_start) {
@@ -166,7 +201,7 @@ export default class extends Controller {
               label: (ctx) => {
                 const row = ctx.dataset._rows ? ctx.dataset._rows[ctx.dataIndex] : null
                 if (!row) return `${ctx.dataset.label}: N/A`
-                const [, index, ret, value, pnl] = row
+                const [, index, ret, value, pnl, cashPct] = row
                 const sign = ret > 0 ? "+" : ""
                 const parts = [
                   `Index ${fmt(index)}`,
@@ -175,6 +210,9 @@ export default class extends Controller {
                 if (!ctx.dataset._isBench) {
                   parts.push(`Value ${value === null ? "N/A" : fmt(value, 0)}`)
                   parts.push(`P&L ${pnl === null ? "N/A" : (pnl > 0 ? "+" : "") + fmt(pnl, 0)}`)
+                  if (wealth && cashPct !== null && cashPct !== undefined) {
+                    parts.push(`Invested ${fmt(100 - cashPct, 0)}% · Cash ${fmt(cashPct, 0)}%`)
+                  }
                 }
                 return `${ctx.dataset.label} — ${parts.join(" · ")}`
               },
@@ -183,7 +221,7 @@ export default class extends Controller {
         },
         scales: {
           x: { ticks: { maxTicksLimit: 8 } },
-          y: { title: { display: true, text: drawdown ? "Drawdown %" : "Indexed (start = 100)" } },
+          y: { title: { display: true, text: drawdown ? (wealth ? "Wealth drawdown %" : "Drawdown %") : (wealth ? "Wealth index (start = 100)" : "Indexed (start = 100)") } },
         },
       },
     })

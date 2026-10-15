@@ -18,12 +18,15 @@ module Api
       role = %w[all base temporary].include?(params[:role].to_s) ? params[:role].to_s : "all"
       mode = params[:mode].to_s == "common" ? "common" : "own"
       benchmark = ActiveModel::Type::Boolean.new.cast(params[:benchmark])
+      basis = params[:basis].to_s == "wealth" ? "wealth" : "invested"
+      combined = ActiveModel::Type::Boolean.new.cast(params[:combined])
       range = ChartRangeHelper.range(params[:range] || "3m")
       from = range&.begin || Date.new(1900, 1, 1)
       result = PortfolioPerformanceService.normalized_series(
-        portfolios.to_a, role: role, from: from, to: Date.current, mode: mode, benchmark: benchmark
+        portfolios.to_a, role: role, from: from, to: Date.current, mode: mode, benchmark: benchmark,
+        basis: basis.to_sym, combined: combined
       )
-      render json: { common_start: result[:common_start], mode: mode, series: result[:series] }
+      render json: { common_start: result[:common_start], mode: mode, basis: basis, series: result[:series] }
     end
 
     def allocation

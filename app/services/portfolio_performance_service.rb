@@ -26,6 +26,15 @@ require "bigdecimal"
 # (no external flows), normalised and rebased to the SAME comparison start as the
 # portfolios. Benchmarks NEVER enter a portfolio's value, "All portfolios",
 # allocation, cash, flows, XIRR or any portfolio card (spec #13/#14).
+#
+# Two bases (basis: keyword, default :invested = everything described above):
+#   :invested  Invested TWR  — holdings only. A sale is an outflow, so cash retained
+#              after de-risking is NOT part of the measured capital.
+#   :wealth    Wealth Return — holdings + retained portfolio cash (Managed Wealth),
+#              same Modified Dietz + compounding engine. Buys/sells/dividends are
+#              internal (they move value between holdings and cash); only
+#              PortfolioCashFlow contributions/withdrawals/transfers are external. See
+#              PortfolioWealthSeriesService. Unsupported histories render N/A.
 class PortfolioPerformanceService
   HALF = BigDecimal("0.5")
 
@@ -42,31 +51,47 @@ class PortfolioPerformanceService
   ].freeze
   TRAILING = %i[d1 w1 m1 m3 y1].freeze # require a full prior-boundary point
 
-  DayReturn = Struct.new(:date, :value, :external, :dividend, :daily_return, :daily_pnl, keyword_init: true)
+  # cash: retained cash inside value (wealth basis only; nil for the invested basis).
+  DayReturn = Struct.new(:date, :value, :external, :dividend, :daily_return, :daily_pnl, :cash, keyword_init: true)
   PeriodResult = Struct.new(:key, :label, :return_pct, :pnl, :available, keyword_init: true)
+  # One calendar period (quarter / year / overall): opening balance (= previous period's
+  # closing), net external money added(+)/withdrawn(-), gain, closing balance, and the
+  # time-weighted return (flow-neutral, chained from the daily returns).
+  CalendarPeriod = Struct.new(:label, :unit, :ends_on, :opening, :closing, :net_flow, :gain, :return_pct, :complete,
+                              keyword_init: true)
   Row = Struct.new(
     :scope, :label, :current_value, :invested, :deposits, :withdrawals,
     :dividends, :daily_return, :daily_pnl, :periods, :inception, :as_of,
     :final, :last_date,
+    :basis, :note, :cash, :cash_weight, # wealth basis extras (note = why N/A)
     keyword_init: true
   )
 
   class << self
-    def for_portfolio(portfolio, role: "all", as_of: Date.current)
-      new(base_id: Currency.reporting_currency_id).row_for([portfolio], label: portfolio.name, scope: portfolio, role: role, as_of: as_of)
+    def for_portfolio(portfolio, role: "all", as_of: Date.current, basis: :invested)
+      new(base_id: Currency.reporting_currency_id, basis: basis).row_for([portfolio], label: portfolio.name, scope: portfolio, role: role, as_of: as_of)
     end
 
-    def combined(portfolios, role: "all", as_of: Date.current)
-      new(base_id: Currency.reporting_currency_id).row_for(portfolios, label: "All portfolios", scope: :combined, role: role, as_of: as_of)
+    def combined(portfolios, role: "all", as_of: Date.current, basis: :invested)
+      new(base_id: Currency.reporting_currency_id, basis: basis).row_for(portfolios, label: "All portfolios", scope: :combined, role: role, as_of: as_of)
     end
 
     # Rows for each portfolio plus a combined row. Portfolios with no data are kept
     # (their periods render N/A). Used by the comparison pages.
-    def table(portfolios, role: "all", as_of: Date.current)
-      svc = new(base_id: Currency.reporting_currency_id)
+    def table(portfolios, role: "all", as_of: Date.current, basis: :invested)
+      svc = new(base_id: Currency.reporting_currency_id, basis: basis)
       rows = portfolios.map { |p| svc.row_for([p], label: p.name, scope: p, role: role, as_of: as_of) }
       rows << svc.row_for(portfolios, label: "All portfolios", scope: :combined, role: role, as_of: as_of) if portfolios.size > 1
       rows
+    end
+
+    # Quarter / year / overall tables per portfolio plus a combined entry (when >1 selected).
+    # => [{ label:, scope:, quarters: [CalendarPeriod], years: [CalendarPeriod], overall: CalendarPeriod|nil, note: }]
+    def calendar_table(portfolios, role: "all", basis: :invested)
+      svc = new(base_id: Currency.reporting_currency_id, basis: basis)
+      entries = portfolios.map { |p| svc.calendar_entry([p], label: p.name, scope: p, role: role) }
+      entries << svc.calendar_entry(portfolios, label: "All portfolios", scope: :combined, role: role) if portfolios.size > 1
+      entries
     end
 
     # Comparison-only rows for the market benchmarks (EGX30, EGX33 Shariah). Each
@@ -91,16 +116,21 @@ class PortfolioPerformanceService
     # selected set). Returns { common_start:, series: [{label, kind, points}] } where
     # each point is [iso_date, index, return_pct, value, pnl] (value/pnl nil for a
     # benchmark). benchmark: append the market benchmark index series.
-    def normalized_series(portfolios, role: "all", from:, to: Date.current, mode: "own", benchmark: false)
-      new(base_id: Currency.reporting_currency_id)
-        .normalized_series(portfolios, role: role, from: from, to: to, mode: mode, benchmark: benchmark)
+    # basis: :wealth switches the portfolio curves to Managed Wealth (holdings + retained
+    # cash); benchmarks are unchanged. combined: true adds an "All portfolios" curve
+    # (internal transfers net to zero) when more than one portfolio is selected. Wealth
+    # points carry a 6th element: cash weight % of that day's value.
+    def normalized_series(portfolios, role: "all", from:, to: Date.current, mode: "own", benchmark: false,
+                          basis: :invested, combined: false)
+      new(base_id: Currency.reporting_currency_id, basis: basis)
+        .normalized_series(portfolios, role: role, from: from, to: to, mode: mode, benchmark: benchmark, combined: combined)
     end
 
     # Raw cash-flow-adjusted daily return series for a scope (list of portfolios) +
     # role. Consumed by PortfolioRiskService so risk metrics use exactly the same
     # returns as the rest of the engine (consolidated = one series when many).
-    def daily_series(portfolios, role: "all")
-      new(base_id: Currency.reporting_currency_id).daily_for(portfolios, role: role)
+    def daily_series(portfolios, role: "all", basis: :invested)
+      new(base_id: Currency.reporting_currency_id, basis: basis).daily_for(portfolios, role: role)
     end
 
     # Public period boundary dates (for aligning a benchmark to the same windows).
@@ -110,8 +140,45 @@ class PortfolioPerformanceService
     end
   end
 
-  def initialize(base_id:)
+  def initialize(base_id:, basis: :invested)
     @base_id = base_id
+    @basis = basis.to_s == "wealth" ? :wealth : :invested
+    @wealth_cache = {}
+  end
+
+  def wealth?
+    @basis == :wealth
+  end
+
+  def calendar_entry(portfolios, label:, scope:, role:)
+    daily = daily_for(portfolios, role: role)
+    note = daily.empty? ? wealth_unavailable_note(portfolios, role) : (wealth? && @wealth_through ? "valid through #{@wealth_through.iso8601}" : nil)
+    { label: label, scope: scope, quarters: calendar_periods(daily, :quarter), years: calendar_periods(daily, :year),
+      overall: overall_period(daily), note: note }
+  end
+
+  # Periods tile the history: each opens at the previous period's closing value, so
+  # "Q2 opens at Q1's close". Period return = chained daily returns (external money added
+  # or withdrawn is neutralised), NOT closing/opening - 1.
+  def calendar_periods(daily, unit)
+    return [] if daily.size < 2
+
+    prev_close = daily.first.value
+    last_date = daily.last.date
+    daily.drop(1).group_by { |d| calendar_key(d.date, unit) }.sort_by(&:first).map do |key, rows|
+      period = build_calendar_period(rows, prev_close, unit, key, last_date)
+      prev_close = period.closing
+      period
+    end
+  end
+
+  def overall_period(daily)
+    return nil if daily.size < 2
+
+    p = build_calendar_period(daily.drop(1), daily.first.value, :overall, nil, daily.last.date)
+    p.label = "Overall (#{daily.first.date.iso8601} → #{daily.last.date.iso8601})"
+    p.complete = true
+    p
   end
 
   def row_for(portfolios, label:, scope:, role:, as_of:)
@@ -122,7 +189,8 @@ class PortfolioPerformanceService
                      deposits: 0.to_d, withdrawals: 0.to_d, dividends: 0.to_d,
                      daily_return: nil, daily_pnl: nil,
                      periods: PERIODS.to_h { |k, l| [k, PeriodResult.new(key: k, label: l, return_pct: nil, pnl: nil, available: false)] },
-                     inception: nil, as_of: as_of, final: true, last_date: nil)
+                     inception: nil, as_of: as_of, final: true, last_date: nil,
+                     basis: @basis, note: wealth_unavailable_note(portfolios, role))
     end
 
     last = daily.last
@@ -131,8 +199,7 @@ class PortfolioPerformanceService
     # Final when the last data point is a stored EOD snapshot (or lies in the past);
     # Intraday only when today's value is not yet a recorded snapshot. Uses the
     # snapshot table as the session-status signal (no hardcoded market close).
-    snap_final = PortfolioSnapshot.where(portfolio_id: portfolios.map(&:id), date: last_date).count >= portfolios.size
-    final = last_date < Date.current || snap_final
+    final = last_date < Date.current || snapshots_final?(portfolios, last_date)
     deposits = daily.sum { |d| d.external.positive? ? d.external : 0.to_d }
     withdrawals = daily.sum { |d| d.external.negative? ? -d.external : 0.to_d }
     dividends = daily.sum(&:dividend)
@@ -142,13 +209,24 @@ class PortfolioPerformanceService
       [key, period_result(daily, key, plabel, inception)]
     end
 
+    note = nil
+    if wealth? && @wealth_through
+      # Only history up to @wealth_through is trustworthy: everything anchored to "today"
+      # is N/A; since-inception is shown through that date.
+      periods = periods.to_h do |k, pr|
+        k == :inception ? [k, pr] : [k, PeriodResult.new(key: k, label: pr.label, return_pct: nil, pnl: nil, available: false)]
+      end
+      note = "cash history is reliable only through #{@wealth_through.iso8601}; since-inception is measured through that date, other periods are N/A"
+    end
+
     Row.new(
       scope: scope, label: label,
       current_value: last.value, invested: invested,
       deposits: deposits, withdrawals: withdrawals, dividends: dividends,
       daily_return: last.daily_return, daily_pnl: last.daily_pnl,
       periods: periods, inception: inception, as_of: as_of,
-      final: final, last_date: last_date
+      final: final, last_date: last_date,
+      basis: @basis, cash: last.cash, cash_weight: cash_weight(last), note: note
     )
   end
 
@@ -182,12 +260,17 @@ class PortfolioPerformanceService
 
   # Daily return series for a scope (list of portfolios) + role.
   def daily_for(portfolios, role:)
+    if wealth?
+      values, flows, cash = wealth_values_flows_cash(portfolios, role)
+      return build_daily(values, flows, cash)
+    end
+
     values, flows = value_and_flows(portfolios, role)
     build_daily(values, flows)
   end
 
   # Instance entry point for the comparison chart (see class method docs).
-  def normalized_series(portfolios, role:, from:, to: Date.current, mode: "own", benchmark: false)
+  def normalized_series(portfolios, role:, from:, to: Date.current, mode: "own", benchmark: false, combined: false)
     dailies = portfolios.map { |p| [p, daily_for([p], role: role).select { |d| d.date <= to }] }
 
     start_on = nil
@@ -205,6 +288,14 @@ class PortfolioPerformanceService
     dailies.each do |p, dd|
       pts = normalize(dd, from: from, to: to, start_on: start_on)
       series << { label: p.name, kind: "portfolio", points: pts } if pts.present?
+    end
+
+    if combined && portfolios.size > 1
+      # Internal portfolio-to-portfolio moves cancel inside the combined series. It is
+      # rebased on the same start as the others and never moves the common start.
+      all_daily = daily_for(portfolios, role: role).select { |d| d.date <= to }
+      pts = normalize(all_daily, from: from, to: to, start_on: start_on)
+      series << { label: "All portfolios", kind: "portfolio", points: pts } if pts.present?
     end
 
     if benchmark
@@ -228,11 +319,11 @@ class PortfolioPerformanceService
     idx = 100.to_d
     cum = 0.to_d
     first = window.first
-    out = [normalized_point(first.date, idx, 0.to_d, first.value, cum)]
+    out = [normalized_point(first.date, idx, 0.to_d, first.value, cum, cash_weight(first))]
     window.drop(1).each do |d|
       idx *= (1 + (d.daily_return || 0.to_d))
       cum += (d.daily_pnl || 0.to_d)
-      out << normalized_point(d.date, idx, idx - 100, d.value, cum)
+      out << normalized_point(d.date, idx, idx - 100, d.value, cum, cash_weight(d))
     end
     out
   end
@@ -254,8 +345,95 @@ class PortfolioPerformanceService
 
   private
 
-  def normalized_point(date, idx, ret, value, pnl)
-    [date.iso8601, idx.to_f.round(2), ret.to_f.round(2), value&.to_f&.round(2), pnl&.to_f&.round(2)]
+  # The invested basis keeps the original 5-element point; the wealth basis appends the
+  # cash weight (% of value held as retained cash) as a 6th element.
+  def normalized_point(date, idx, ret, value, pnl, cash_pct = nil)
+    pt = [date.iso8601, idx.to_f.round(2), ret.to_f.round(2), value&.to_f&.round(2), pnl&.to_f&.round(2)]
+    pt << cash_pct&.to_f&.round(2) if wealth?
+    pt
+  end
+
+  # Retained cash as a % of that day's Managed Wealth (wealth basis only).
+  def cash_weight(day)
+    return nil unless wealth? && day.cash && day.value&.positive?
+
+    day.cash / day.value * 100
+  end
+
+  def snapshots_final?(portfolios, last_date)
+    PortfolioSnapshot.where(portfolio_id: portfolios.map(&:id), date: last_date).count >= portfolios.size
+  end
+
+  def calendar_key(date, unit)
+    unit == :year ? [date.year, 0] : [date.year, ((date.month - 1) / 3) + 1]
+  end
+
+  def calendar_end(key, unit)
+    year, q = key
+    unit == :year ? Date.new(year, 12, 31) : Date.new(year, q * 3, -1)
+  end
+
+  def build_calendar_period(rows, opening, unit, key, last_date)
+    factor = 1.to_d
+    flow = 0.to_d
+    gain = 0.to_d
+    rows.each do |r|
+      factor *= (1 + (r.daily_return || 0.to_d))
+      flow += r.external
+      gain += (r.daily_pnl || 0.to_d)
+    end
+    ends_on = key ? calendar_end(key, unit) : last_date
+    label = key ? (unit == :year ? key[0].to_s : "#{key[0]} Q#{key[1]}") : "Overall"
+    CalendarPeriod.new(label: label, unit: unit, ends_on: ends_on, opening: opening, closing: rows.last.value,
+                       net_flow: flow, gain: gain, return_pct: (factor - 1) * 100, complete: last_date >= ends_on)
+  end
+
+  # ---- Wealth basis -----------------------------------------------------------
+  # Per-portfolio Managed Wealth series (memoised: a portfolio is built once even
+  # though it feeds its own row, the combined row and the chart).
+  def wealth_series_for(portfolio, role)
+    @wealth_cache[[portfolio.id, role.to_s]] ||=
+      PortfolioWealthSeriesService.call(portfolio, role: role, base_id: @base_id)
+  end
+
+  # [values, flows, cash] for a scope. All-or-nothing: if ANY selected portfolio's
+  # wealth cannot be reconstructed, the scope is N/A rather than silently omitting
+  # that portfolio's capital.
+  def wealth_values_flows_cash(portfolios, role)
+    @wealth_through = nil
+    series = portfolios.map { |p| wealth_series_for(p, role) }
+    return [[], {}, {}] if series.empty? || series.any? { |s| !s.available? }
+
+    flows = Hash.new { |h, k| h[k] = PortfolioCashFlowService::Day.new(external: 0.to_d, dividend: 0.to_d) }
+    series.each do |s|
+      s.flows.each do |d, day|
+        flows[d].external += day.external
+        flows[d].dividend += day.dividend
+      end
+    end
+    values = align_and_sum(series.map(&:values))
+    cash = align_and_sum(series.map(&:cash_values)).to_h
+    # If any portfolio's cash history is only reliable up to a date, the combined series
+    # ends there too (carrying a stale value forward would be fabricated).
+    @wealth_through = series.filter_map(&:through).min
+    if @wealth_through
+      values = values.select { |d, _v| d <= @wealth_through }
+      cash = cash.select { |d, _c| d <= @wealth_through }
+    end
+    [values, flows, cash]
+  end
+
+  # Why a wealth row is N/A (shown as a tooltip/note), or nil on the invested basis.
+  def wealth_unavailable_note(portfolios, role)
+    return nil unless wealth?
+
+    parts = portfolios.filter_map do |p|
+      s = wealth_series_for(p, role)
+      next if s.available?
+
+      "#{p.name}: #{PortfolioWealthSeriesService.reason_text(s)}"
+    end
+    parts.presence&.join("; ")
   end
 
   def window_first_date(daily, from, to)
@@ -394,7 +572,7 @@ class PortfolioPerformanceService
   end
 
   # Modified Dietz daily returns over an aligned [[date, value], ...] series.
-  def build_daily(values, flows)
+  def build_daily(values, flows, cash = nil)
     # Bucket every external flow into the window ending at each snapshot date, so a
     # buy/sell dated BETWEEN snapshots still offsets its holdings-value jump. A plain
     # flows[d] lookup would drop flows on non-snapshot days and mis-count a purchase
@@ -414,13 +592,13 @@ class PortfolioPerformanceService
       end
 
       if prev.nil?
-        row = DayReturn.new(date: d, value: v.to_d, external: f, dividend: div, daily_return: nil, daily_pnl: nil)
+        row = DayReturn.new(date: d, value: v.to_d, external: f, dividend: div, daily_return: nil, daily_pnl: nil, cash: cash&.[](d))
       else
         start = prev.to_d
         pnl = v.to_d - start - f + div
         denom = start + (f * HALF)
         r = denom.zero? ? nil : (pnl / denom)
-        row = DayReturn.new(date: d, value: v.to_d, external: f, dividend: div, daily_return: r, daily_pnl: pnl)
+        row = DayReturn.new(date: d, value: v.to_d, external: f, dividend: div, daily_return: r, daily_pnl: pnl, cash: cash&.[](d))
       end
       prev = v
       row

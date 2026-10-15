@@ -58,6 +58,8 @@ A personal investment portfolio tracker. Users record transactions (buy, sell, d
 | `WalletLedgerService` | Computes wallet balances by summing `effect_on_wallet`. No DB state — derived from transactions |
 | `HoldingsCalculatorService` | Computes unrealised/realised gain, cost basis (historical FX). `for_holding(holding)` → `Result` struct |
 | `CurrencyConversionService` | `convert(amount, from_id, to_id)` and `rate_on_date(from_id, to_id, date)` |
+| `PortfolioPerformanceService` | Daily Modified-Dietz TWR, period returns, normalized chart. `basis: :invested` (default, holdings only — unchanged) or `basis: :wealth` (holdings + retained portfolio cash) |
+| `PortfolioWealthSeriesService` / `PortfolioCashLedger` | Managed Wealth series for the wealth basis: holdings value + cash by date. Cash = the portfolio's optional `liquidity_wallet` balance (wallet ledger; deposits/withdrawals/other-portfolio use of the wallet are external) else its own cash ledger from `PortfolioOpeningCapital`. Valid up to the first negative-cash date; N/A (with reason) if neither source, or a role filter. `PortfolioPerformanceService.calendar_table` gives quarter/year/overall rows |
 | `PortfolioXirrService` | XIRR calculation per portfolio |
 | `MonthlyCashFlowService` | Cash flow by month |
 | `PortfolioStatsService` | Portfolio-level stats aggregation |

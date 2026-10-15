@@ -27,10 +27,18 @@ class PortfoliosController < ApplicationController
     @metric = params[:metric] == "pnl" ? "pnl" : "pct"
     @chart_range = params[:range].presence || "3m"
     @reporting_currency = Currency.base.first
-    @rows = PortfolioPerformanceService.table(scope, role: @position_role)
+    # Basis: "invested" = Invested TWR (holdings only, the original metric);
+    # "wealth" = Wealth Return (holdings + retained portfolio cash).
+    @basis = params[:basis] == "wealth" ? "wealth" : "invested"
+    @rows = PortfolioPerformanceService.table(scope, role: @position_role, basis: @basis.to_sym)
     @period_defs = PortfolioPerformanceService::PERIODS
     @chart_mode = params[:mode] == "common" ? "common" : "own"
     @chart_benchmark = ActiveModel::Type::Boolean.new.cast(params[:benchmark])
+    @chart_combined = ActiveModel::Type::Boolean.new.cast(params[:combined])
+    # Calendar returns table: "quarter" (default), "year", or "none".
+    @calendar_unit = %w[quarter year none].include?(params[:calendar]) ? params[:calendar] : "quarter"
+    @calendar = @calendar_unit == "none" ? [] :
+      PortfolioPerformanceService.calendar_table(scope, role: @position_role, basis: @basis.to_sym)
 
     as_of = @rows.map(&:as_of).compact.max || Date.current
 
@@ -122,7 +130,7 @@ class PortfoliosController < ApplicationController
       list = row.scope == :combined ? scope_portfolios : [row.scope]
       next unless list.all? { |x| x.is_a?(Portfolio) }
 
-      daily = PortfolioPerformanceService.daily_series(list, role: @position_role)
+      daily = PortfolioPerformanceService.daily_series(list, role: @position_role, basis: @basis.to_sym)
       from = risk_window_from(@risk_period, as_of, common_start, row.inception)
       key = row.scope.is_a?(Portfolio) ? row.scope.id : :combined
       @risk_by_row[key] = PortfolioRiskService.from_daily(
@@ -404,7 +412,7 @@ class PortfoliosController < ApplicationController
       :name, :key, :description,
       :include_in_combined_percent, :active,
       :whole_target_type_id, :whole_target_percentage, :whole_target_amount,
-      :benchmark_market_index_id
+      :benchmark_market_index_id, :liquidity_wallet_id
     )
   end
 

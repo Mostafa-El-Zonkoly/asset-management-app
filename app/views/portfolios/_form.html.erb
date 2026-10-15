@@ -52,6 +52,12 @@
     <p class="mt-1 text-xs text-slate-500">Shown as Benchmark return and Alpha on the portfolio's performance card.</p>
   </div>
 
+  <div>
+    <%= f.label :liquidity_wallet_id, "Liquidity wallet (optional)", class: "block text-sm font-medium text-slate-900" %>
+    <%= f.collection_select :liquidity_wallet_id, Asset.wallets.order(:code), :id, :code, { include_blank: "— none —" }, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" %>
+    <p class="mt-1 text-xs text-slate-500">The wallet that holds this portfolio's cash after sales. Its balance is added to the portfolio's holdings to measure overall value (Wealth Return); moving money between the portfolio and this wallet has no effect on performance. Use a wallet that belongs to one portfolio only.</p>
+  </div>
+
   <p class="text-sm text-slate-600">Portfolio totals use each asset’s own currency for prices and convert to the global reporting currency (see <%= link_to "Currencies", settings_currencies_path, class: "text-blue-600 underline" %> — the one marked base).</p>
   <div class="flex gap-2">
     <%= f.submit class: "rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700" %>
