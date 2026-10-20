@@ -290,14 +290,25 @@ class PortfolioWealthReturnTest < ActiveSupport::TestCase
     assert_equal bd("-10"), wealth_twr(s).round(6)
   end
 
-  test "wallet: moving money between the portfolio and its wallet is internal (zero performance impact)" do
-    # sell 50 (wallet +50), later the portfolio redeploys 20 from the wallet via a cash flow.
+  test "wallet: redeploying wallet cash into the portfolio (a buy settled through the wallet) is internal" do
+    # sell 50 (wallet +50), later the portfolio buys 20 through the wallet.
     s = wallet_series(
       holdings: [[d(1), 100], [d(2), 50], [d(3), 70]],
-      effects: [fx(d(2), 50, "sell", 1), fx(d(3), -20, "contribution", 1)]
+      effects: [fx(d(2), 50, "sell", 1), fx(d(3), -20, "buy", 1)]
     )
     assert_equal bd(0), wealth_twr(s)
     assert_equal({ d(1) => bd(100) }, s.flows.transform_values(&:external))
+  end
+
+  test "wallet: a contribution/withdrawal between the portfolio and its OWN wallet is wealth-neutral" do
+    # Regression: it used to drain wallet cash with no offsetting asset => a fake loss.
+    s = wallet_series(
+      holdings: [[d(1), 100], [d(2), 100], [d(3), 100]],
+      effects: [fx(d(1), 30, "deposit"), fx(d(2), -30, "contribution", 1), fx(d(3), 10, "cash_withdrawal", 1)]
+    )
+    assert_equal [bd(130), bd(130), bd(130)], s.values.map(&:last)
+    assert_equal bd(0), wealth_twr(s)
+    assert_equal({ d(1) => bd(130) }, s.flows.transform_values(&:external))
   end
 
   test "wallet: deposits and withdrawals on the wallet are external and neutralised" do
@@ -389,7 +400,8 @@ class PortfolioWealthReturnTest < ActiveSupport::TestCase
     assert_equal bd(5_000), q2.net_flow
     assert_equal bd(1_000), q2.gain
     assert_equal bd(21_000), q2.closing
-    assert_equal bd("5.714286"), q2.return_pct.round(6) # 1000 / (15000 + 0.5 * 5000), not +40%
+    # A deposit counts in full for the day it lands (weight 1): 1000 / (15000 + 5000), not +40%.
+    assert_equal bd("5"), q2.return_pct.round(6)
     assert_equal bd(q2.opening + q2.net_flow + q2.gain), q2.closing
   end
 

@@ -37,7 +37,7 @@ require "bigdecimal"
 class PortfolioWealthSeriesService
   EPOCH = Date.new(1900, 1, 1)
 
-  Series = Struct.new(:values, :cash_values, :flows, :start, :reason, :detail, :through, :source, keyword_init: true) do
+  Series = Struct.new(:values, :cash_values, :flows, :start, :reason, :detail, :through, :source, :internal, keyword_init: true) do
     def available?
       reason.nil? && values.present?
     end
@@ -55,8 +55,18 @@ class PortfolioWealthSeriesService
     negative_cash: "cash goes negative (a buy was not funded), so cash history is unreliable"
   }.freeze
 
-  # Wallet-ledger effect kinds that are internal to a portfolio when that portfolio's own.
-  INTERNAL_KINDS = %w[buy sell cash_dividend contribution cash_withdrawal].freeze
+  # Wallet-ledger effect kinds that are internal to a portfolio when that portfolio's own:
+  # they only move value between holdings and the liquidity wallet.
+  INTERNAL_KINDS = %w[buy sell cash_dividend].freeze
+
+  # PortfolioCashFlow rows between THIS portfolio and ITS OWN liquidity wallet. They move
+  # money from one place inside the managed universe (the wallet) to another (the
+  # portfolio's own cash ledger), so they change neither Managed Wealth nor the external
+  # capital. Previously they were replayed as an internal cash DRAIN with no offsetting
+  # asset, so every contribution that was not spent in the same instant looked like a
+  # loss (the "deposit collapses the chart" bug). They are now dropped from both the cash
+  # and the flow streams.
+  OWN_WALLET_TRANSFER_KINDS = %w[contribution cash_withdrawal].freeze
 
   class << self
     def call(portfolio, role: "all", base_id: nil)
@@ -69,7 +79,9 @@ class PortfolioWealthSeriesService
     # Returns a Series (available or with a reason). No DB access.
     def compose(holdings_values, ledger, source: :portfolio_cash)
       start_on = ledger.migration_on
-      held = holdings_values.select { |d, _v| d >= start_on }
+      # Valuation dates must be strictly ascending and unique: the return engine chains
+      # day after day, so an out-of-order point would turn into a fake jump.
+      held = holdings_values.select { |d, _v| d >= start_on }.sort_by(&:first).uniq(&:first)
       return unavailable(:before_migration) if held.empty?
 
       through = nil
@@ -83,10 +95,14 @@ class PortfolioWealthSeriesService
 
       values = []
       cash_values = []
+      internal = {}
+      prev_d = nil
       held.each do |d, h|
         c = ledger.cash_on(d)
         values << [d, h.to_d + c]
         cash_values << [d, c]
+        internal[d] = ledger.internal_between(prev_d, d) # diagnostics (PerformanceDebugLog)
+        prev_d = d
       end
 
       first_date = values.first[0]
@@ -102,7 +118,7 @@ class PortfolioWealthSeriesService
 
       Series.new(values: values, cash_values: cash_values, flows: flows, start: first_date,
                  reason: nil, detail: through ? "valid through #{through.iso8601}" : nil,
-                 through: through, source: source)
+                 through: through, source: source, internal: internal)
     end
 
     # Pure: split wallet-ledger effects into the ledger's two event streams.
@@ -114,7 +130,10 @@ class PortfolioWealthSeriesService
       tx = []
       flow = []
       effects.each do |e|
-        internal = e[:portfolio_id] == portfolio_id && INTERNAL_KINDS.include?(e[:kind])
+        own = e[:portfolio_id] == portfolio_id
+        next if own && OWN_WALLET_TRANSFER_KINDS.include?(e[:kind]) # wealth-neutral, see above
+
+        internal = own && INTERNAL_KINDS.include?(e[:kind])
         (internal ? tx : flow) << [e[:date], e[:amount].to_d]
       end
       boundary = elsewhere.map { |e| [e[:date], e[:amount].to_d] }

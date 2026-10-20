@@ -38,6 +38,11 @@ class PortfolioCashLedger
     @flows = group_and_accumulate(flow_events)
   end
 
+  # Net INTERNAL cash movement in (from, to]: buys/fees (-), sells/dividends (+). Diagnostics only.
+  def internal_between(from, to)
+    cumulative(@tx, to) - (from ? cumulative(@tx, from) : 0.to_d)
+  end
+
   # Cash balance at the END of +date+.
   def cash_on(date)
     opening_cash + cumulative(@tx, date) + cumulative(@flows, date)

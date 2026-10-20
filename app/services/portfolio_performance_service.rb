@@ -38,6 +38,22 @@ require "bigdecimal"
 class PortfolioPerformanceService
   HALF = BigDecimal("0.5")
 
+  # Wealth basis: the external flows are cash deposits/withdrawals, whose timing inside
+  # the day is unknown (values are end-of-day). A deposit dated d is treated as arriving
+  # BEFORE d's close (weight 1: it is part of the capital the day's move is measured on)
+  # and a withdrawal as leaving AFTER it (weight 0). With these weights the flow itself
+  # can never create or destroy return:
+  #     r = (V_end - V_start - F) / (V_start + w*F)
+  # (deposit: F > 0, w = 1; withdrawal: F < 0, w = 0). The invested basis keeps the
+  # Modified Dietz mid-day weight of 0.5 for buys/sells, unchanged.
+  WEALTH_DEPOSIT_WEIGHT = BigDecimal("1")
+  WEALTH_WITHDRAWAL_WEIGHT = BigDecimal("0")
+
+  # A day with a non-zero external flow and a |return| above this is logged as suspicious:
+  # a pure deposit/withdrawal must never move performance, so such a day means the flow
+  # and the value series disagree (e.g. the cash leg is missing from the value).
+  JUMP_WARN_THRESHOLD = BigDecimal("0.05")
+
   PERIODS = [
     [:d1,  "1D"],
     [:w1,  "1W"],
@@ -52,7 +68,8 @@ class PortfolioPerformanceService
   TRAILING = %i[d1 w1 m1 m3 y1].freeze # require a full prior-boundary point
 
   # cash: retained cash inside value (wealth basis only; nil for the invested basis).
-  DayReturn = Struct.new(:date, :value, :external, :dividend, :daily_return, :daily_pnl, :cash, keyword_init: true)
+  # internal: net cash moved by buys(-)/sells(+)/dividends(+)/fees(-) that day (diagnostics only).
+  DayReturn = Struct.new(:date, :value, :external, :dividend, :daily_return, :daily_pnl, :cash, :internal, keyword_init: true)
   PeriodResult = Struct.new(:key, :label, :return_pct, :pnl, :available, keyword_init: true)
   # One calendar period (quarter / year / overall): opening balance (= previous period's
   # closing), net external money added(+)/withdrawn(-), gain, closing balance, and the
@@ -262,11 +279,11 @@ class PortfolioPerformanceService
   def daily_for(portfolios, role:)
     if wealth?
       values, flows, cash = wealth_values_flows_cash(portfolios, role)
-      return build_daily(values, flows, cash)
+      return build_daily(values, flows, cash, scope: portfolios.map(&:id))
     end
 
     values, flows = value_and_flows(portfolios, role)
-    build_daily(values, flows)
+    build_daily(values, flows, scope: portfolios.map(&:id))
   end
 
   # Instance entry point for the comparison chart (see class method docs).
@@ -286,7 +303,7 @@ class PortfolioPerformanceService
 
     series = []
     dailies.each do |p, dd|
-      pts = normalize(dd, from: from, to: to, start_on: start_on)
+      pts = normalize(dd, from: from, to: to, start_on: start_on, label: "portfolio_#{p.id}")
       series << { label: p.name, kind: "portfolio", points: pts } if pts.present?
     end
 
@@ -294,13 +311,13 @@ class PortfolioPerformanceService
       # Internal portfolio-to-portfolio moves cancel inside the combined series. It is
       # rebased on the same start as the others and never moves the common start.
       all_daily = daily_for(portfolios, role: role).select { |d| d.date <= to }
-      pts = normalize(all_daily, from: from, to: to, start_on: start_on)
+      pts = normalize(all_daily, from: from, to: to, start_on: start_on, label: "All portfolios")
       series << { label: "All portfolios", kind: "portfolio", points: pts } if pts.present?
     end
 
     if benchmark
       benchmark_indices(portfolios).each do |mi|
-        pts = normalize(benchmark_daily(mi), from: from, to: to, start_on: start_on)
+        pts = normalize(benchmark_daily(mi), from: from, to: to, start_on: start_on, label: mi.code)
         series << { label: "#{mi.code} · benchmark", kind: "benchmark", points: pts } if pts.present?
       end
     end
@@ -311,7 +328,7 @@ class PortfolioPerformanceService
   # Base-100 normalised points over [from, to] using COMPOUNDED daily returns.
   # start_on forces the base date (common-start mode); otherwise the first in-window
   # day is the base. Each point: [iso, index, return_pct, value, cumulative_pnl].
-  def normalize(daily, from:, to:, start_on: nil)
+  def normalize(daily, from:, to:, start_on: nil, label: nil)
     window = daily.select { |d| d.date >= from && d.date <= to }
     window = window.select { |d| d.date >= start_on } if start_on
     return [] if window.size < 2
@@ -325,6 +342,7 @@ class PortfolioPerformanceService
       cum += (d.daily_pnl || 0.to_d)
       out << normalized_point(d.date, idx, idx - 100, d.value, cum, cash_weight(d))
     end
+    PerformanceDebugLog.log_normalized(label, out, start_on: start_on, mode: start_on ? "common" : "own")
     out
   end
 
@@ -401,8 +419,11 @@ class PortfolioPerformanceService
   # that portfolio's capital.
   def wealth_values_flows_cash(portfolios, role)
     @wealth_through = nil
+    @wealth_internal = {}
     series = portfolios.map { |p| wealth_series_for(p, role) }
     return [[], {}, {}] if series.empty? || series.any? { |s| !s.available? }
+
+    series.each { |s| (s.internal || {}).each { |d, amt| @wealth_internal[d] = (@wealth_internal[d] || 0.to_d) + amt } }
 
     flows = Hash.new { |h, k| h[k] = PortfolioCashFlowService::Day.new(external: 0.to_d, dividend: 0.to_d) }
     series.each do |s|
@@ -571,8 +592,37 @@ class PortfolioPerformanceService
     end
   end
 
-  # Modified Dietz daily returns over an aligned [[date, value], ...] series.
-  def build_daily(values, flows, cash = nil)
+  # Weight of the net external flow F inside the day (see WEALTH_*_WEIGHT).
+  def flow_weight(net_flow)
+    return HALF unless wealth?
+
+    net_flow.positive? ? WEALTH_DEPOSIT_WEIGHT : WEALTH_WITHDRAWAL_WEIGHT
+  end
+
+  # Days whose return is implausibly large while an external flow happened. Pure helper
+  # (also used by the diagnose rake task and the tests).
+  def self.suspicious_days(daily, threshold: JUMP_WARN_THRESHOLD)
+    daily.select { |r| r.daily_return && r.external.nonzero? && r.daily_return.abs > threshold }
+  end
+
+  def log_suspicious(daily)
+    return unless defined?(Rails) && Rails.respond_to?(:logger) && Rails.logger
+
+    self.class.suspicious_days(daily).each do |r|
+      Rails.logger.warn(
+        "[PortfolioPerformance] #{@basis} basis: #{r.date} return #{(r.daily_return * 100).round(2)}% " \
+        "on an external flow of #{r.external.to_f.round(2)} (value #{r.value.to_f.round(2)}, " \
+        "cash #{r.cash&.to_f&.round(2).inspect}) - a deposit/withdrawal should not move performance; " \
+        "check that the flow's cash leg is inside the value series"
+      )
+    end
+  end
+
+  # Daily returns over an aligned [[date, value], ...] series: Modified Dietz, with the
+  # day's external flow weighted by flow_weight; chained (never summed) by callers.
+  def build_daily(values, flows, cash = nil, scope: nil)
+    values = values.sort_by { |d, _v| d } # chaining needs ascending dates
+    internal = wealth? ? (@wealth_internal || {}) : {}
     # Bucket every external flow into the window ending at each snapshot date, so a
     # buy/sell dated BETWEEN snapshots still offsets its holdings-value jump. A plain
     # flows[d] lookup would drop flows on non-snapshot days and mis-count a purchase
@@ -592,16 +642,19 @@ class PortfolioPerformanceService
       end
 
       if prev.nil?
-        row = DayReturn.new(date: d, value: v.to_d, external: f, dividend: div, daily_return: nil, daily_pnl: nil, cash: cash&.[](d))
+        row = DayReturn.new(date: d, value: v.to_d, external: f, dividend: div, daily_return: nil, daily_pnl: nil, cash: cash&.[](d), internal: internal[d] || 0.to_d)
       else
         start = prev.to_d
         pnl = v.to_d - start - f + div
-        denom = start + (f * HALF)
-        r = denom.zero? ? nil : (pnl / denom)
-        row = DayReturn.new(date: d, value: v.to_d, external: f, dividend: div, daily_return: r, daily_pnl: pnl, cash: cash&.[](d))
+        denom = start + (f * flow_weight(f))
+        r = denom.positive? ? (pnl / denom) : nil
+        row = DayReturn.new(date: d, value: v.to_d, external: f, dividend: div, daily_return: r, daily_pnl: pnl, cash: cash&.[](d), internal: internal[d] || 0.to_d)
       end
       prev = v
       row
+    end.tap do |rows|
+      log_suspicious(rows)
+      PerformanceDebugLog.log_daily(rows, scope: scope, basis: @basis, suspicious: self.class.suspicious_days(rows))
     end
   end
 end
