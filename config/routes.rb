@@ -79,6 +79,9 @@ Rails.application.routes.draw do
       post :reset_cash_flows
     end
     resource :free_cash_target, only: %i[edit update]
+    resource :efg_credential, only: %i[edit update destroy] do
+      post :test
+    end
     resource :zaka_setting, only: %i[edit update]
     resource :core_scoring_setting, only: %i[edit update]
     resource :analytics_setting, only: %i[edit update] do
