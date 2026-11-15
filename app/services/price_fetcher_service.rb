@@ -3,15 +3,16 @@
 require Rails.root.join("lib/mubasher/rails_adapter")
 require Rails.root.join("lib/hermes/rails_adapter")
 require Rails.root.join("lib/azimut/rails_adapter")
+require Rails.root.join("lib/efg/rails_adapter")
 
 class PriceFetcherService
   class << self
     def fetch_one(asset, date: Date.current)
-      record = adapter_for(asset, date: date).fetch_and_persist!
+      record, source = fetch_with_fallback(asset, date: date)
 
-      Rails.logger.info("PriceFetcherService: fetched #{asset.code} => #{record.price} #{asset.currency.code} (#{date})")
-      { ok: true, asset_id: asset.id, code: asset.code, price: record.price, date: date }
-    rescue Mubasher::FetchError, Hermes::FetchError, Azimut::FetchError => e
+      Rails.logger.info("PriceFetcherService: fetched #{asset.code} => #{record.price} #{asset.currency.code} (#{date}) via #{source}")
+      { ok: true, asset_id: asset.id, code: asset.code, price: record.price, date: date, source: source }
+    rescue Mubasher::FetchError, Hermes::FetchError, Azimut::FetchError, Efg::FetchError => e
       Rails.logger.warn("PriceFetcherService: failed for #{asset.code}: #{e.message}")
       { ok: false, asset_id: asset.id, code: asset.code, error: e.message }
     rescue StandardError => e
@@ -60,6 +61,28 @@ class PriceFetcherService
 
     private
 
+    # EGX direct stocks without an explicit provider use EFG first (when the EFG
+    # credentials are configured) and fall back to Mubasher if EFG fails.
+    def fetch_with_fallback(asset, date:)
+      if efg_eligible?(asset)
+        begin
+          return [Efg::RailsAdapter.new(asset: asset, date: date).fetch_and_persist!, "efg"]
+        rescue Efg::FetchError => e
+          Rails.logger.warn("PriceFetcherService: EFG failed for #{asset.code} (#{e.message}); falling back to Mubasher")
+        end
+      end
+
+      adapter = adapter_for(asset, date: date)
+      [adapter.fetch_and_persist!, adapter.class.module_parent.name.downcase]
+    end
+
+    def efg_eligible?(asset)
+      asset.price_provider.blank? &&
+        asset.direct_stock? &&
+        asset.currency&.code.to_s.upcase == "EGP" &&
+        EfgCredential.configured?
+    end
+
     def adapter_for(asset, date:)
       case asset.price_provider.to_s.strip.downcase
       when "hermes"
@@ -77,7 +100,7 @@ class PriceFetcherService
 
       Asset.where(id: direct_stocks.select(:id))
            .or(Asset.where(id: providered.select(:id)))
-           .includes(:currency)
+           .includes(:currency, :asset_type)
            .order(:code)
            .to_a
     end

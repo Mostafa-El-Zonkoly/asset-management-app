@@ -39,6 +39,9 @@
   { label: "Analytics (Sharpe)", path: edit_settings_analytics_setting_path },
   { label: "Maintenance", path: settings_maintenance_path }
 ] %>
+<% if EfgCredential.manageable_by?(current_user) %>
+  <% settings_items += [{ label: "EFG API", path: edit_settings_efg_credential_path }] %>
+<% end %>
 <% if current_user&.admin? %>
   <% settings_items += [
     { label: "Export data", path: export_backup_path },
