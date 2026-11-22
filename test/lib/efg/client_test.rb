@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "test_helper"
+require "minitest/mock"
 require Rails.root.join("lib/efg/client")
 
 # Canned-response tests for the EFG client. No live network.
@@ -63,6 +64,23 @@ class Efg::ClientTest < ActiveSupport::TestCase
     assert_equal "real", quote[:headers]["X-Server-Select"]
   end
 
+  test "stock quotes and index snapshots use the same token request" do
+    client = StubClient.new(responses, company_code: "009")
+    stream = Minitest::Mock.new
+    stream.expect(:call, { "ix1" => {} }, [], trading_id: "TID", token: "tok123", index_ids: [1])
+
+    Efg::IndexStream.stub(:fetch, stream) do
+      assert client.authenticate!
+      assert_equal({ "ix1" => {} }, client.index_snapshots([1]))
+      assert_equal 78.41, client.price("ABUK")[:price]
+    end
+    stream.verify
+
+    auth_calls = client.calls.select { |call| call[:path] == Efg::Client::AUTH_PATH }
+    assert_equal 1, auth_calls.size
+    assert_equal "009", auth_calls.first[:headers]["x-company-code"]
+  end
+
   test "token and directory are cached across symbols" do
     c = StubClient.new(responses)
     c.price("ABUK")
@@ -94,7 +112,7 @@ class Efg::ClientTest < ActiveSupport::TestCase
 
   test "failed authentication never leaks the secret in the error" do
     r = responses.merge("/api/public-keys/token" => Response.new(403, '{"error":"SECRET-KEY bad"}'))
-    err = assert_raises(Efg::FetchError) { StubClient.new(r).authenticate! }
+    err = assert_raises(Efg::Client::AuthenticationError) { StubClient.new(r).authenticate! }
     refute_includes err.message, "SECRET-KEY"
   end
 

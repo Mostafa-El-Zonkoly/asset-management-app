@@ -12,28 +12,30 @@ require Rails.root.join("lib/mubasher/index_rails_adapter")
 # upserts, so re-running never duplicates a trading-date snapshot.
 class BenchmarkPriceFetcherService
   class << self
-    def fetch_one(market_index, date: Date.current)
+    def fetch_one(market_index, date: Date.current, run_id: SecureRandom.uuid)
+      fields = { run_id: run_id, provider: "mubasher", market_index_id: market_index.id,
+                 code: market_index.code, user_id: market_index.user_id, date: date }
       record = adapter_for(market_index, date: date).fetch_and_persist!
-      Rails.logger.info("BenchmarkPriceFetcherService: fetched #{market_index.code} => #{record.price} (#{date})")
+      log(:info, "index_saved", **fields, level: record.price)
       { ok: true, market_index_id: market_index.id, code: market_index.code, price: record.price, date: date }
     rescue Mubasher::FetchError => e
-      Rails.logger.warn("BenchmarkPriceFetcherService: failed for #{market_index.code}: #{e.message}")
+      log(:warn, "index_failed", **fields, reason: e.message)
       { ok: false, market_index_id: market_index.id, code: market_index.code, error: e.message }
     rescue StandardError => e
-      Rails.logger.error("BenchmarkPriceFetcherService: unexpected error for #{market_index.code}: #{e.class} - #{e.message}")
+      log(:error, "index_failed", **fields, error_class: e.class.name)
       { ok: false, market_index_id: market_index.id, code: market_index.code, error: "Unexpected error: #{e.message}" }
     end
 
     # Fetch every fetchable index. Yields per-index progress like the asset
     # fetcher so callers can drive the same status UI.
-    def fetch_all(date: Date.current)
+    def fetch_all(date: Date.current, run_id: SecureRandom.uuid)
       indices = fetchable_indices
       results = []
       success = 0
       failed = 0
 
       indices.each_with_index do |mi, idx|
-        results << fetch_one(mi, date: date)
+        results << fetch_one(mi, date: date, run_id: run_id)
         results.last[:ok] ? success += 1 : failed += 1
         yield({ current: idx + 1, total: indices.size, success: success, failed: failed, code: mi.code }) if block_given?
       end
@@ -49,6 +51,10 @@ class BenchmarkPriceFetcherService
     end
 
     private
+
+    def log(severity, event, **fields)
+      Rails.logger.public_send(severity, { job: "price_fetch", event: event, **fields }.to_json)
+    end
 
     def adapter_for(market_index, date:)
       case market_index.source.to_s.strip.downcase

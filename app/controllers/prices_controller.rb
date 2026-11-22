@@ -76,7 +76,7 @@ class PricesController < ApplicationController
       PriceFetchStatusTracker.start!(current_user.id)
       broadcast_fetch_controls!(PriceFetchStatusTracker.status_for(current_user.id))
 
-      summary = PriceFetcherService.fetch_all(date: fetch_date) do |progress|
+      summary = PriceFetcherService.fetch_all(date: fetch_date, run_id: request.request_id) do |progress|
         progress_message = "Fetching prices... #{progress[:current]}/#{progress[:total]} (ok: #{progress[:success]}, failed: #{progress[:failed]}) - #{progress[:asset_code]}"
         PriceFetchStatusTracker.update_running!(current_user.id, message: progress_message)
         broadcast_fetch_controls!(PriceFetchStatusTracker.status_for(current_user.id))
@@ -87,6 +87,7 @@ class PricesController < ApplicationController
                 else
                   "Price fetch finished: #{summary[:success]} updated."
                 end
+      message = "#{message} Run ID #{request.request_id}"
       PriceFetchStatusTracker.finish!(current_user.id, message: message)
       status = PriceFetchStatusTracker.status_for(current_user.id)
       broadcast_fetch_controls!(status)
@@ -107,7 +108,7 @@ class PricesController < ApplicationController
       format.html { redirect_to fetch_redirect_path(fetch_date), notice: message }
     end
   rescue StandardError => e
-    error_message = "Price fetch failed: #{e.message}"
+    error_message = "Price fetch failed: #{e.message} Run ID #{request.request_id}"
     PriceFetchStatusTracker.finish!(current_user.id, message: error_message)
     broadcast_fetch_controls!(PriceFetchStatusTracker.status_for(current_user.id))
     respond_to do |format|
