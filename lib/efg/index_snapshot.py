@@ -11,6 +11,28 @@ except ImportError:
     sys.exit(0)
 
 ADAPTER = "PROXY_MarketBeat"
+# Match the Younit SDK's IndexStatistics subscription schema and field order.
+INDEX_FIELDS = [
+    "key",
+    "m_IndexID",
+    "m_IndexName",
+    "m_EnglishName",
+    "m_IndexType",
+    "m_MarketName",
+    "m_MarketID",
+    "m_IndexValue",
+    "m_IndexOpen",
+    "m_IndexClose",
+    "m_IndexHigh",
+    "m_IndexLow",
+    "m_IndexWk52High",
+    "m_IndexWk52Low",
+    "m_NetChange",
+    "m_PrecentChange",
+    "m_ChangeDir",
+    "m_TradedValue",
+    "m_TradedVolume",
+]
 
 
 class SnapshotListener(SubscriptionListener):
@@ -62,7 +84,7 @@ def fetch(request, report):
     connection_status = "not started"
     try:
         for item, required in required_fields.items():
-            fields = required if item == "mk1" else [*required, "m_EnglishName"]
+            fields = required if item == "mk1" else INDEX_FIELDS
             subscription = Subscription("MERGE", [item], fields)
             subscription.setDataAdapter(ADAPTER)
             subscription.setRequestedSnapshot("yes")
@@ -101,7 +123,11 @@ def fetch(request, report):
             if item in observed:
                 values = observed[item]
                 missing = [field for field in required_fields[item] if values.get(field) in (None, "")]
-                results[item] = {"error": f"EFG snapshot {item} is missing {', '.join(missing)}"}
+                if any(value not in (None, "") for value in values.values()):
+                    reason = f"EFG snapshot {item} is missing {', '.join(missing)}"
+                else:
+                    reason = f"EFG sent an empty snapshot for {item}"
+                results[item] = {"error": reason}
             elif item in confirmed:
                 results[item] = {"error": f"EFG accepted {item} but sent no snapshot within 20 seconds"}
             else:
