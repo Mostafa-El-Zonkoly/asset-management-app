@@ -4,6 +4,7 @@ require "faraday"
 require "json"
 require "digest"
 require_relative "fetch_error"
+require_relative "index_stream"
 
 module Efg
   # Read-only client for the EFG Hermes ONE trading API (the same REST endpoints
@@ -58,6 +59,10 @@ module Efg
     def authenticate!
       token
       true
+    end
+
+    def index_snapshots(index_ids)
+      IndexStream.fetch(trading_id: @trading_id, token: token.delete_prefix("Bearer "), index_ids: index_ids)
     end
 
     def price(symbol)
