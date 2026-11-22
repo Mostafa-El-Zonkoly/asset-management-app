@@ -16,6 +16,7 @@ module Efg
   #
   # Error messages never include credentials, tokens or raw response bodies.
   class Client
+    class AuthenticationError < FetchError; end
     class UnauthorizedError < FetchError; end
 
     BASE_URL = "https://tradingapis.efghermesone.com"
@@ -122,6 +123,8 @@ module Efg
 
       ttl = [expires_in - TOKEN_SAFETY_MARGIN, 60].max
       [ "Bearer #{access}", ttl ]
+    rescue FetchError => e
+      raise AuthenticationError, e.message
     end
 
     # Cache helper. The block returns a value, or [value, ttl] when ttl is nil.
@@ -169,7 +172,7 @@ module Efg
       response = http_request(method, BASE_URL + path, headers, body && JSON.generate(body))
       status = response.status.to_i
       raise UnauthorizedError, "EFG rejected the credentials (HTTP 401)" if status == 401 && auth
-      raise FetchError, "EFG authentication failed (HTTP #{status}); check Trading ID / API key" if !auth && !(200..299).cover?(status)
+      raise FetchError, "EFG token request rejected (HTTP #{status}); check Trading ID, API key, and company code" if !auth && !(200..299).cover?(status)
       raise FetchError, "EFG returned HTTP #{status}" unless (200..299).cover?(status)
 
       JSON.parse(response.body.to_s)

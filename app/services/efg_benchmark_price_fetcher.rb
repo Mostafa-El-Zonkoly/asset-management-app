@@ -31,6 +31,8 @@ class EfgBenchmarkPriceFetcher
     client = EfgCredential.client
     raise Efg::FetchError, "EFG credentials are missing" unless client
 
+    log(:info, "authenticating")
+    client.authenticate!
     log(:info, "subscribing", efg_index_ids: ids)
     snapshots = client.index_snapshots(ids)
     raise Efg::FetchError, snapshots["error"] if snapshots["error"]
@@ -47,6 +49,9 @@ class EfgBenchmarkPriceFetcher
     end
 
     [snapshots, nil]
+  rescue Efg::Client::AuthenticationError => e
+    log(:warn, "authentication_failed", reason: e.message)
+    [nil, e.message]
   rescue Efg::FetchError => e
     log(:warn, "stream_failed", reason: e.message)
     [nil, e.message]

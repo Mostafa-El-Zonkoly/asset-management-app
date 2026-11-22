@@ -7,7 +7,7 @@ class PriceFetchJob < ApplicationJob
     status_message = "Price fetch finished."
 
     begin
-      summary = PriceFetcherService.fetch_all
+      summary = PriceFetcherService.fetch_all(run_id: job_id)
       status_message = if summary[:failed].positive?
                          "Price fetch finished: #{summary[:success]}/#{summary[:total]} succeeded, #{summary[:failed]} failed."
                        else
@@ -18,7 +18,7 @@ class PriceFetchJob < ApplicationJob
       raise
     ensure
       if user_id.present?
-        PriceFetchStatusTracker.finish!(user_id, message: status_message)
+        PriceFetchStatusTracker.finish!(user_id, message: "#{status_message} Run ID #{job_id}")
         Turbo::StreamsChannel.broadcast_replace_to(
           "prices_#{user_id}",
           target: "price_fetch_controls",
