@@ -19,6 +19,12 @@ class SnapshotListener(SubscriptionListener):
         self.item = item
         self.fields = fields
 
+    def onSubscription(self):
+        self.events.put(("subscribed", self.item))
+
+    def onEndOfSnapshot(self, _item_name, _item_pos):
+        self.events.put(("snapshot_ended", self.item))
+
     def onItemUpdate(self, update):
         values = {field: update.getValue(field) for field in self.fields}
         self.events.put((self.item, values))
@@ -52,6 +58,7 @@ def fetch(request, report):
     pending = set(required_fields)
     results = {}
     observed = {}
+    confirmed = set()
     connection_status = "not started"
     try:
         for item, required in required_fields.items():
@@ -75,7 +82,15 @@ def fetch(request, report):
             if item == "status":
                 connection_status = values
                 report("connection_status", status=connection_status)
+            elif item == "subscribed":
+                confirmed.add(values)
+                report("subscription_accepted", item=values)
+            elif item == "snapshot_ended":
+                report("snapshot_ended", item=values, received_update=values in observed)
             elif item in pending:
+                if item not in observed and "error" not in values:
+                    available = [field for field, value in values.items() if value not in (None, "")]
+                    report("first_update", item=item, available_fields=available)
                 observed[item] = values
                 if "error" in values or all(values.get(field) not in (None, "") for field in required_fields[item]):
                     results[item] = values
@@ -87,8 +102,10 @@ def fetch(request, report):
                 values = observed[item]
                 missing = [field for field in required_fields[item] if values.get(field) in (None, "")]
                 results[item] = {"error": f"EFG snapshot {item} is missing {', '.join(missing)}"}
+            elif item in confirmed:
+                results[item] = {"error": f"EFG accepted {item} but sent no snapshot within 20 seconds"}
             else:
-                results[item] = {"error": f"No EFG snapshot received for {item}"}
+                results[item] = {"error": f"EFG did not confirm or send a snapshot for {item} within 20 seconds"}
         return {**results, "connection_status": connection_status}
     finally:
         report("disconnecting")

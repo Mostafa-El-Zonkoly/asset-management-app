@@ -12,6 +12,9 @@ class EfgBenchmarkFetchJob < ApplicationJob
               else
                 "EFG benchmarks finished. #{summary[:updated]} updated, #{summary[:failed]} failed."
               end
+    summary[:failures].each do |failure|
+      message += " #{failure.fetch(:code)} — #{failure.fetch(:reason)}."
+    end
   rescue StandardError => e
     Rails.logger.error({ job: "efg_benchmark_fetch", run_id: job_id, user_id: user_id, event: "failed", error_class: e.class.name }.to_json)
     message = "EFG benchmark fetch failed."

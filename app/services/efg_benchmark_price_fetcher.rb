@@ -13,12 +13,13 @@ class EfgBenchmarkPriceFetcher
 
     ids = index_ids.values.compact.uniq
     snapshots, stream_error = load_snapshots(ids) if ids.any?
-    updated = indices.count do |index|
-      save_snapshot(index, index_ids.fetch(index.id), snapshots, stream_error)
+    failures = indices.filter_map do |index|
+      reason = save_snapshot(index, index_ids.fetch(index.id), snapshots, stream_error)
+      { code: index.code, reason: reason } if reason
     end
-    failed = indices.size - updated
-    log(:info, "finished", updated: updated, failed: failed)
-    { updated: updated, failed: failed, total: indices.size }
+    updated = indices.size - failures.size
+    log(:info, "finished", updated: updated, failed: failures.size)
+    { updated: updated, failed: failures.size, total: indices.size, failures: failures }
   end
 
   private
@@ -93,13 +94,13 @@ class EfgBenchmarkPriceFetcher
       unique_by: %i[market_index_id date], update_only: %i[price price_source_id]
     )
     log(:info, "index_saved", **fields, provider_name: snapshot["m_EnglishName"], level: level)
-    true
+    nil
   rescue Efg::FetchError => e
     log(:warn, "index_failed", **fields, reason: e.message)
-    false
+    e.message
   rescue StandardError => e
     log(:error, "index_failed", **fields, error_class: e.class.name)
-    false
+    "Unexpected error (#{e.class.name})"
   end
 
   def efg_price_source
