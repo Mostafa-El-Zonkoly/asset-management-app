@@ -12,6 +12,7 @@ class MarketIndex < ApplicationRecord
 
   validates :name, :code, presence: true
   validates :code, uniqueness: { case_sensitive: false, scope: :user_id }
+  validates :efg_index_id, numericality: { only_integer: true, greater_than: 0 }, allow_nil: true
   validates :index_kind, inclusion: { in: %w[price total_return] }
 
   # Official market benchmarks (EGX30, EGX33 Shariah) surfaced by the Portfolio

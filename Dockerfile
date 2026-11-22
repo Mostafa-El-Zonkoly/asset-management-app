@@ -15,7 +15,7 @@ WORKDIR /rails
 
 # Install base packages (libpq5 for PostgreSQL, libvips for Active Storage images)
 RUN apt-get update -qq && \
-    apt-get install --no-install-recommends -y curl libjemalloc2 libpq5 libvips && \
+    apt-get install --no-install-recommends -y curl libjemalloc2 libpq5 libvips python3 && \
     rm -rf /var/lib/apt/lists /var/cache/apt/archives
 
 # Build-time knobs so this ONE Dockerfile builds either image:
@@ -39,7 +39,7 @@ FROM base AS build
 
 # Install packages needed to build gems
 RUN apt-get update -qq && \
-    apt-get install --no-install-recommends -y build-essential git libpq-dev libyaml-dev pkg-config && \
+    apt-get install --no-install-recommends -y build-essential git libpq-dev libyaml-dev pkg-config python3-venv && \
     rm -rf /var/lib/apt/lists /var/cache/apt/archives
 
 # Install application gems
@@ -47,6 +47,10 @@ COPY Gemfile Gemfile.lock ./
 RUN bundle install && \
     rm -rf ~/.bundle/ "${BUNDLE_PATH}"/ruby/*/cache "${BUNDLE_PATH}"/ruby/*/bundler/gems/*/.git && \
     bundle exec bootsnap precompile --gemfile
+
+# Read-only EFG benchmark snapshots use the Lightstreamer Python client.
+RUN python3 -m venv /opt/efg-stream && \
+    /opt/efg-stream/bin/pip install --no-cache-dir lightstreamer-client-lib==2.2.3
 
 # Copy application code
 COPY . .
@@ -62,6 +66,9 @@ RUN SECRET_KEY_BASE_DUMMY=1 ./bin/rails assets:precompile
 
 # Final stage for app image
 FROM base
+
+COPY --from=build /opt/efg-stream /opt/efg-stream
+ENV EFG_STREAM_PYTHON=/opt/efg-stream/bin/python
 
 # Copy built artifacts: gems, application
 COPY --from=build "${BUNDLE_PATH}" "${BUNDLE_PATH}"

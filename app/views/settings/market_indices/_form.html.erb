@@ -30,6 +30,12 @@
     </div>
 
     <div class="mt-3">
+      <%= f.label :efg_index_id, "EFG Hermes index ID", class: "block text-sm font-medium text-slate-900" %>
+      <%= f.number_field :efg_index_id, min: 1, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2" %>
+      <p class="mt-1 text-xs text-slate-500">Used by the EFG benchmark fetch. EGX30 defaults to 1.</p>
+    </div>
+
+    <div class="mt-3">
       <%= f.label :source_identifier, "Full URL override (optional)", class: "block text-sm font-medium text-slate-900" %>
       <%= f.text_field :source_identifier, class: "mt-1 w-full rounded-md border border-slate-300 px-3 py-2", placeholder: "https://www.mubasher.info/markets/EGX/indices/egx30/" %>
       <p class="mt-1 text-xs text-slate-400">Used instead of the built URL when set.</p>
