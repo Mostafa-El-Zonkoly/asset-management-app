@@ -5,8 +5,8 @@ class PriceFetchStatusTracker
   FINISHED_TTL = 6.hours
 
   class << self
-    def start!(user_id)
-      update_running!(user_id, message: "Fetching prices...")
+    def start!(user_id, message: "Fetching prices...")
+      update_running!(user_id, message: message)
     end
 
     def update_running!(user_id, message:)

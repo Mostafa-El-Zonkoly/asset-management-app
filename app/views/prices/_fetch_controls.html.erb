@@ -5,5 +5,10 @@
                 method: :post,
                 disabled: status[:running],
                 class: "rounded-md px-4 py-2 text-sm font-medium text-white #{status[:running] ? 'cursor-not-allowed bg-slate-400' : 'bg-slate-800'}" %>
+  <%= button_to "Fetch benchmarks from EFG",
+                fetch_efg_benchmarks_prices_path,
+                method: :post,
+                disabled: status[:running],
+                class: "rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-800 disabled:cursor-not-allowed disabled:opacity-50" %>
   <%= render "prices/fetch_status", status: status %>
 </div>
