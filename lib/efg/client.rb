@@ -62,8 +62,8 @@ module Efg
       true
     end
 
-    def index_snapshots(index_ids)
-      IndexStream.fetch(trading_id: @trading_id, token: token.delete_prefix("Bearer "), index_ids: index_ids)
+    def index_snapshots(index_ids, &progress)
+      IndexStream.fetch(trading_id: @trading_id, token: token.delete_prefix("Bearer "), index_ids: index_ids, &progress)
     end
 
     def price(symbol)

@@ -34,7 +34,11 @@ class EfgBenchmarkPriceFetcher
     log(:info, "authenticating")
     client.authenticate!
     log(:info, "subscribing", efg_index_ids: ids)
-    snapshots = client.index_snapshots(ids)
+    snapshots = client.index_snapshots(ids) do |progress|
+      log(:info, "stream_progress", **progress.except("event"), stage: progress.fetch("event"))
+    end
+    log(:info, "subscription_result", connection_status: snapshots["connection_status"],
+        snapshots: snapshots.slice("mk1", *ids.map { |id| "ix#{id}" }).transform_values { |snapshot| snapshot["error"] || "received" })
     raise Efg::FetchError, snapshots["error"] if snapshots["error"]
 
     market = snapshots.fetch("mk1")
@@ -44,7 +48,9 @@ class EfgBenchmarkPriceFetcher
     time = market["MarketTime"]
     date = market_date(time)
     log(:info, "market_snapshot", market_status: status, market_time: time, market_date: date)
-    unless %w[3 Closed].include?(status) && date == @date && !date.friday? && !date.saturday?
+    raise Efg::FetchError, "EFG market time did not include a recognized trading date" unless date
+    raise Efg::FetchError, "EFG reported trading date #{date}, expected #{@date}" unless date == @date
+    unless %w[3 Closed].include?(status) && !date.friday? && !date.saturday?
       raise Efg::FetchError, "EFG did not report a closed EGX session for #{@date}"
     end
 
