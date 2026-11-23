@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require Rails.root.join("lib/mubasher/index_rails_adapter")
+require Rails.root.join("lib/yahoo_finance/index_rails_adapter")
 
 # Fetches daily CLOSING levels for fetchable market indices (the EGX30 / EGX33
 # Shariah benchmarks and any other index flagged is_active with a source URL) and
@@ -13,12 +14,18 @@ require Rails.root.join("lib/mubasher/index_rails_adapter")
 class BenchmarkPriceFetcherService
   class << self
     def fetch_one(market_index, date: Date.current, run_id: SecureRandom.uuid)
-      fields = { run_id: run_id, provider: "mubasher", market_index_id: market_index.id,
+      provider = yahoo_benchmark?(market_index) ? "yahoo_finance" : "mubasher"
+      fields = { run_id: run_id, provider: provider, market_index_id: market_index.id,
                  code: market_index.code, user_id: market_index.user_id, date: date }
-      record = adapter_for(market_index, date: date).fetch_and_persist!
-      log(:info, "index_saved", **fields, level: record.price)
+      adapter = if provider == "yahoo_finance"
+                  YahooFinance::IndexRailsAdapter.new(market_index: market_index, date: date)
+                else
+                  Mubasher::IndexRailsAdapter.new(market_index: market_index, date: date)
+                end
+      record = adapter.fetch_and_persist!
+      log(:info, "index_saved", **fields, level: record.price, source_url: adapter.respond_to?(:fetched_url) ? adapter.fetched_url : nil)
       { ok: true, market_index_id: market_index.id, code: market_index.code, price: record.price, date: date }
-    rescue Mubasher::FetchError => e
+    rescue Mubasher::FetchError, YahooFinance::FetchError => e
       log(:warn, "index_failed", **fields, reason: e.message)
       { ok: false, market_index_id: market_index.id, code: market_index.code, error: e.message }
     rescue StandardError => e
@@ -46,7 +53,9 @@ class BenchmarkPriceFetcherService
     # filter — every user's fetchable index is refreshed (ownership on the written
     # IndexPrice is derived from its parent index via tenant_through).
     def fetchable_indices
-      MarketIndex.fetchable.includes(:currency).order(:code).to_a
+      yahoo_indices = MarketIndex.where(is_benchmark: true, is_active: true)
+                                 .where("UPPER(TRIM(code)) IN (?)", YahooFinance::IndexRailsAdapter::SYMBOLS.keys)
+      MarketIndex.fetchable.or(yahoo_indices).includes(:currency).order(:code).to_a
     end
 
     private
@@ -55,15 +64,8 @@ class BenchmarkPriceFetcherService
       Rails.logger.public_send(severity, { job: "price_fetch", event: event, **fields }.to_json)
     end
 
-    def adapter_for(market_index, date:)
-      case market_index.source.to_s.strip.downcase
-      when "", "mubasher"
-        Mubasher::IndexRailsAdapter.new(market_index: market_index, date: date)
-      else
-        # Only Mubasher index scraping is implemented today; treat any other
-        # source as Mubasher-style (the URL scraper) rather than silently skipping.
-        Mubasher::IndexRailsAdapter.new(market_index: market_index, date: date)
-      end
+    def yahoo_benchmark?(index)
+      index.is_benchmark? && YahooFinance::IndexRailsAdapter::SYMBOLS.key?(index.code.to_s.strip.upcase)
     end
   end
 end

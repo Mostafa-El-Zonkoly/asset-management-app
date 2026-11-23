@@ -67,7 +67,7 @@ Rails.application.routes.draw do
   resources :prices, only: %i[index create] do
     collection do
       post :fetch
-      post :fetch_mubasher_benchmarks
+      post :fetch_yahoo_benchmarks
     end
   end
   # Manual entry of index closing levels (parallels prices#create for assets).

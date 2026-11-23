@@ -45,13 +45,13 @@ class PricesController < ApplicationController
     end
   end
 
-  def fetch_mubasher_benchmarks
+  def fetch_yahoo_benchmarks
     user_id = current_user.id
     return redirect_to prices_path, alert: "A price fetch is already running.", status: :see_other if PriceFetchStatusTracker.running?(user_id)
 
     date = Time.current.in_time_zone("Africa/Cairo").to_date
-    job = MubasherBenchmarkFetchJob.new(user_id, date.iso8601)
-    PriceFetchStatusTracker.start!(user_id, message: "Fetching Mubasher benchmarks. Run ID #{job.job_id}")
+    job = YahooBenchmarkFetchJob.new(user_id, date.iso8601)
+    PriceFetchStatusTracker.start!(user_id, message: "Fetching Yahoo Finance benchmarks. Run ID #{job.job_id}")
     job.enqueue
     raise ActiveJob::EnqueueError unless job.successfully_enqueued?
 
@@ -59,8 +59,8 @@ class PricesController < ApplicationController
   rescue StandardError => e
     raise unless job
 
-    Rails.logger.error({ job: "mubasher_benchmark_fetch", run_id: job.job_id, user_id: user_id, event: "enqueue_failed", error_class: e.class.name }.to_json)
-    message = "Could not queue the Mubasher benchmark fetch. Run ID #{job.job_id}"
+    Rails.logger.error({ job: "yahoo_benchmark_fetch", run_id: job.job_id, user_id: user_id, event: "enqueue_failed", error_class: e.class.name }.to_json)
+    message = "Could not queue the Yahoo Finance benchmark fetch. Run ID #{job.job_id}"
     PriceFetchStatusTracker.finish!(user_id, message: message)
     redirect_to prices_path, alert: message, status: :see_other
   end
