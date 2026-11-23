@@ -24,53 +24,38 @@ class Mubasher::IndexFetcherTest < ActiveSupport::TestCase
         </div>
       </div>
     HTML
-    # 6,705.18 appears 3× (would win the frequency heuristic) but the dedicated
-    # element wins because it is read directly.
     assert_in_delta 6_639.47, fetcher.extract_level(html: html), 1e-6
   end
 
-  # EGX-style page: thousands-grouped level repeated across header/summary/script.
-  test "extracts a thousands-grouped index level (54,909.17)" do
+  test "reads a plain level directly after the update date" do
     html = <<~HTML
-      <h1>EGX 30</h1>
-      <span class="value">54,909.17</span>
-      <div class="change">+112.62 (+0.21%)</div>
-      <script type="application/ld+json">{"name":"EGX 30","last":54909.17,"prevClose":54796.55}</script>
-      <div class="prev">Prev close 54,796.55</div>
-      <footer>Volume 1,234,567 shares</footer>
+      <div class="market-summary__block">
+        <time>Last update: Thursday, September 17</time>
+        <strong>54,909.17</strong>
+        <div>Previous Close 54,796.55</div>
+      </div>
     HTML
     assert_in_delta 54_909.17, fetcher.extract_level(html: html), 1e-6
   end
 
-  test "extracts a smaller grouped level (6,651.18) for a Shariah-style page" do
+  test "handles an ungrouped index level in the price element" do
+    assert_in_delta 6_651.18, fetcher.extract_level(html: '<span class="market-summary__last-price">6651.18</span>'), 1e-6
+  end
+
+  test "ignores an adjacent change when the last level is missing" do
     html = <<~HTML
-      <h1>EGX 33 Shariah</h1>
-      <span>6,651.18</span>
-      <div>+65.71 (+1.00%)</div>
-      <span class="repeat">6,651.18</span>
-      <div>Prev 6,585.47</div>
+      <div class="market-summary__date">Last update: Thursday, September 17</div>
+      <span class="market-summary__change">460.30</span>
     HTML
-    assert_in_delta 6_651.18, fetcher.extract_level(html: html), 1e-6
+    assert_nil fetcher.extract_level(html: html)
   end
 
-  test "handles an ungrouped decimal level" do
-    html = "<div class='idx'>6651.18</div><div class='idx'>6651.18</div><p>chg 0.5</p>"
-    assert_in_delta 6_651.18, fetcher.extract_level(html: html), 1e-6
-  end
-
-  test "returns nil when no in-range level is present" do
-    assert_nil fetcher.extract_level(html: "<p>share price 12.34, qty 5</p>")
-  end
-
-  test "picks the repeated true level over a one-off out-of-place number" do
-    html = <<~HTML
-      <span>54,909.17</span><span>54,909.17</span><span>54,909.17</span>
-      <aside>lucky number 99,999.99</aside>
-    HTML
-    assert_in_delta 54_909.17, fetcher.extract_level(html: html), 1e-6
+  test "does not guess a level from previous closes or unrelated numbers" do
+    html = "<div>Previous Close 54,796.55</div><footer>54,796.55</footer>"
+    assert_nil fetcher.extract_level(html: html)
   end
 
   test "rejects a URL without mubasher.info before any network call" do
-    assert_raises(Mubasher::FetchError) { fetcher.fetch_level_from_url(url: "https://example.com/egx30") }
+    assert_raises(Mubasher::FetchError) { fetcher.fetch_level_from_url(url: "https://example.com/mubasher.info/egx30") }
   end
 end
