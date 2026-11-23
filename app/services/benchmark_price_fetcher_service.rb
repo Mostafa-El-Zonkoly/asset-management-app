@@ -28,8 +28,7 @@ class BenchmarkPriceFetcherService
 
     # Fetch every fetchable index. Yields per-index progress like the asset
     # fetcher so callers can drive the same status UI.
-    def fetch_all(date: Date.current, run_id: SecureRandom.uuid)
-      indices = fetchable_indices
+    def fetch_all(date: Date.current, run_id: SecureRandom.uuid, indices: fetchable_indices)
       results = []
       success = 0
       failed = 0
